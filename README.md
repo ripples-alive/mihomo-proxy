@@ -16,6 +16,9 @@ create `.env`
 ```
 CONFIG_URL=
 PASSWORD=
+LAN_IPS=
+BIND=
+DNS_BIND=
 ```
 
 init config and enable service
