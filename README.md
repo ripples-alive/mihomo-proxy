@@ -19,6 +19,7 @@ PASSWORD=
 LAN_IPS=
 BIND=
 DNS_BIND=
+TPROXY_IP=
 ```
 
 init config and enable service
