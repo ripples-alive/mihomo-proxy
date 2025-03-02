@@ -1,0 +1,22 @@
+#!/bin/bash
+
+DIR_NAME=${DIR_NAME:-$(dirname $(readlink -f $0))}
+DIR_NAME=${DIR_NAME:-"."}
+echo "meta dir: ${DIR_NAME}"
+[ -f $DIR_NAME/.env ] && source $DIR_NAME/.env
+
+CHAIN_NAME=${CHAIN_NAME:-meta}
+SET_NAME=${SET_NAME:-meta_bypass}
+MARK_VALUE=${MARK_VALUE:-1}
+ROUTE_TABLE=${ROUTE_TABLE:-99}
+TPROXY_PORT=${TPROXY_PORT:-7893}
+TPROXY_IP=${TPROXY_IP:-127.0.0.1}
+IFS=',:' read -ra LAN_IPS <<< "$LAN_IPS"
+
+USER=${USER:-$(whoami)}
+
+[ -z "$CONFIG_URL" ] && echo "CONFIG_URL not found"
+
+PASSWORD=${PASSWORD:-password}
+BIND=${BIND:-0.0.0.0}
+DNS_BIND=${DNS_BIND:-$(tailscale ip -4)}

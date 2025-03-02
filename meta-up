@@ -1,0 +1,37 @@
+#!/bin/bash
+
+echo "meta up"
+
+DIR_NAME=${DIR_NAME:-$(dirname $(readlink -f $0))}
+DIR_NAME=${DIR_NAME:-"."}
+source $DIR_NAME/meta-env
+
+echo "creating bypass whitelist"
+ipset create $SET_NAME hash:net
+ipset add $SET_NAME 127.0.0.0/8
+ipset add $SET_NAME 169.254.0.0/16
+ipset add $SET_NAME 10.0.0.0/8
+ipset add $SET_NAME 172.16.0.0/12
+ipset add $SET_NAME 192.168.0.0/16
+ipset add $SET_NAME 224.0.0.0/4
+ipset add $SET_NAME 240.0.0.0/4
+ipset add $SET_NAME 100.64.0.0/10
+ipset add $SET_NAME 255.255.255.255/32
+ipset add $SET_NAME 192.18.0.0/16
+
+echo "creating route table"
+ip rule add fwmark $MARK_VALUE lookup $ROUTE_TABLE
+ip route add local 0.0.0.0/0 dev lo table $ROUTE_TABLE
+
+echo "adding rule for redirecting to proxy"
+iptables -t mangle -N $CHAIN_NAME
+iptables -t mangle -A $CHAIN_NAME -m set --match-set $SET_NAME dst -j RETURN
+iptables -t mangle -A $CHAIN_NAME -p udp -m multiport --sports 41641 -m multiport --dports 41641 -j RETURN
+iptables -t mangle -A $CHAIN_NAME -p udp -j TPROXY --on-ip $TPROXY_IP --on-port $TPROXY_PORT --tproxy-mark 1
+iptables -t mangle -A $CHAIN_NAME -p tcp -j TPROXY --on-ip $TPROXY_IP --on-port $TPROXY_PORT --tproxy-mark 1
+
+for lan_ip in ${LAN_IPS[@]}
+do
+    echo "enabling proxy for $lan_ip"
+    iptables -t mangle -I PREROUTING -s $lan_ip ! -d $lan_ip -j $CHAIN_NAME
+done

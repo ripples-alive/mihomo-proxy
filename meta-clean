@@ -1,0 +1,8 @@
+#!/bin/bash
+
+echo "meta clean"
+
+systemctl disable mihomo
+systemctl disable mihomo-check.timer
+systemctl disable mihomo-check
+systemctl disable mihomo-restart

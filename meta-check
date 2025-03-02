@@ -1,0 +1,25 @@
+#!/bin/bash
+
+echo "meta check"
+
+DIR_NAME=${DIR_NAME:-$(dirname $(readlink -f $0))}
+DIR_NAME=${DIR_NAME:-"."}
+source $DIR_NAME/meta-env
+
+if [ -z "$(ip route show table $ROUTE_TABLE)" ]
+then
+    echo "missing route table"
+    exit -1
+fi
+
+if [ -z "$(sudo ipset list $SET_NAME)" ]
+then
+    echo "missing ipset rule"
+    exit -1
+fi
+
+if [ -z "$(sudo iptables -t mangle -L $CHAIN_NAME)" ]
+then
+    echo "missing iptables chain"
+    exit -1
+fi

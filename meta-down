@@ -1,0 +1,26 @@
+#!/bin/bash
+
+echo "meta down"
+
+DIR_NAME=${DIR_NAME:-$(dirname $(readlink -f $0))}
+DIR_NAME=${DIR_NAME:-"."}
+source $DIR_NAME/meta-env
+
+for lan_ip in ${LAN_IPS[@]}
+do
+    echo "disabling proxy for $lan_ip"
+    iptables -t mangle -D PREROUTING -s $lan_ip ! -d $lan_ip -j $CHAIN_NAME
+done
+
+echo "removing rule for redirecting to proxy"
+iptables -t mangle -F $CHAIN_NAME
+iptables -t mangle -X $CHAIN_NAME
+
+echo "flushing route table"
+ip rule del fwmark $MARK_VALUE lookup $ROUTE_TABLE
+ip route flush table $ROUTE_TABLE
+
+sleep 1
+
+echo "removing bypass whitelist"
+ipset destroy $SET_NAME

@@ -1,0 +1,67 @@
+#!/bin/bash
+
+echo "meta init"
+
+DIR_NAME=${DIR_NAME:-$(dirname $(readlink -f $0))}
+DIR_NAME=${DIR_NAME:-"."}
+source $DIR_NAME/meta-env
+
+mkdir -p ./systemd/mihomo.service.d
+
+echo "=== creating mihomo override ==="
+cat <<EOF | tee ./systemd/mihomo.service.d/override.conf
+[Service]
+ExecStartPost=+$DIR_NAME/meta-up
+ExecStopPost=+$DIR_NAME/meta-down
+EOF
+ln -sf $DIR_NAME/systemd/mihomo.service.d /etc/systemd/system/
+
+echo "=== creating restart service ==="
+cat <<EOF | tee ./systemd/mihomo-restart.service
+[Unit]
+Description=Restart mihomo after check failure
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl restart mihomo
+User=root
+EOF
+ln -sf $DIR_NAME/systemd/mihomo-restart.service /etc/systemd/system/
+
+echo "=== creating check service ==="
+cat <<EOF | tee ./systemd/mihomo-check.service
+[Unit]
+Description=Check if mihomo is alive
+OnFailure=mihomo-restart.service
+
+[Service]
+Type=oneshot
+ExecStart=$DIR_NAME/meta-check
+User=root
+
+TimeoutSec=10
+
+SuccessExitStatus=0
+EOF
+ln -sf $DIR_NAME/systemd/mihomo-check.service /etc/systemd/system/
+
+echo "=== creating restart service ==="
+cat <<EOF | tee ./systemd/mihomo-check.timer
+[Unit]
+Description=Timer to check mihomo alive periodically
+After=mihomo.service
+BindsTo=mihomo.service
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+ln -sf $DIR_NAME/systemd/mihomo-check.timer /etc/systemd/system/
+
+echo "=== reloading systemd and enable services ==="
+systemctl daemon-reload
+systemctl enable --now mihomo
+systemctl enable --now mihomo-check.timer

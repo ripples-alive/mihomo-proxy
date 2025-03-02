@@ -1,0 +1,10 @@
+/.env
+/systemd
+/config.yaml
+/remote.yaml
+/*.bak
+/*.dat
+/*.db
+/providers
+/proxy
+/ui
