@@ -15,7 +15,8 @@ if ! $CHOWN 2>/dev/null; then
     return
 fi
 
-export https_proxy=http://$BIND:7890
+export HTTPS_PROXY
+echo "using proxy $HTTPS_PROXY"
 
 wget -O remote.yaml $CONFIG_URL
 
