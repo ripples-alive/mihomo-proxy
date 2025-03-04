@@ -17,9 +17,11 @@ create `.env`
 CONFIG_URL=
 PASSWORD=
 LAN_IPS=
+PROXY_USERS=
 BIND=
 DNS_BIND=
 TPROXY_IP=
+MIHOMO_SUFFIX=
 ```
 
 init config and enable service
