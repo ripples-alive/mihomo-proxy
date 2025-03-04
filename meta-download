@@ -1,0 +1,14 @@
+#!/bin/bash
+
+echo "meta download"
+
+DIR_NAME=${DIR_NAME:-$(dirname $(readlink -f $0))}
+DIR_NAME=${DIR_NAME:-"."}
+source $DIR_NAME/meta-env
+
+VERSION=1.19.3
+
+export HTTPS_PROXY
+echo "using proxy $HTTPS_PROXY"
+
+wget https://github.com/MetaCubeX/mihomo/releases/download/v${VERSION}/mihomo-linux-amd64${MIHOMO_SUFFIX}-v${VERSION}.deb -O deb/mihomo-linux-amd64${MIHOMO_SUFFIX}-v${VERSION}.deb
