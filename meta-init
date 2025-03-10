@@ -65,3 +65,5 @@ echo "=== reloading systemd and enable services ==="
 systemctl daemon-reload
 systemctl enable --now mihomo
 systemctl enable --now mihomo-check.timer
+sleep 5
+systemctl restart mihomo

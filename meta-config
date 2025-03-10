@@ -34,3 +34,4 @@ wget -O- --method=PUT --header="Authorization: Bearer $PASSWORD" --body-data='{"
 
 $CHOWN
 chmod 777 .
+chmod 666 *.db *.dat
