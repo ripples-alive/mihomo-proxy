@@ -33,3 +33,4 @@ sed -i 's/enhanced-mode: fake-ip/enhanced-mode: redir-host/' config.yaml
 wget -O- --method=PUT --header="Authorization: Bearer $PASSWORD" --body-data='{"path": "", "payload": ""}' "http://$BIND:9090/configs?force=true"
 
 $CHOWN
+chmod 777 .

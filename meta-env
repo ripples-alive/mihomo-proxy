@@ -5,6 +5,9 @@ DIR_NAME=${DIR_NAME:-"."}
 echo "meta dir: ${DIR_NAME}"
 [ -f $DIR_NAME/.env ] && source $DIR_NAME/.env
 
+cd $DIR_NAME
+echo "current working dir: $(pwd)"
+
 CHAIN_NAME=${CHAIN_NAME:-meta}
 SET_NAME=${SET_NAME:-meta_bypass}
 MARK_VALUE=${MARK_VALUE:-1}
