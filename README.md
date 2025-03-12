@@ -27,7 +27,7 @@ MIHOMO_SUFFIX=
 init config and enable service
 
 ```bash
-HTTPS_PROXY= ./meta-config
+./meta-config
 sudo ./meta-init
 ```
 

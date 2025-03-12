@@ -15,9 +15,6 @@ if ! $CHOWN 2>/dev/null; then
     return
 fi
 
-export HTTPS_PROXY
-echo "using proxy $HTTPS_PROXY"
-
 wget -O remote.yaml $CONFIG_URL
 
 cat <<EOF > config.yaml
