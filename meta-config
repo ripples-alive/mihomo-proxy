@@ -22,7 +22,7 @@ EOF
 cat remote.yaml >> config.yaml
 
 sed -i "s/^secret: .\+/secret: $PASSWORD/" config.yaml
-sed -i "s/^bind-address: .\+/bind-address: $BIND/" config.yaml
+sed -i "s/address: [0-9.]\+/address: $BIND/" config.yaml
 sed -i "s/^external-controller: .\+:9090/external-controller: $BIND:9090/" config.yaml
 sed -i "s/listen: .\+:53/listen: $DNS_BIND:53/" config.yaml
 sed -i 's/enhanced-mode: fake-ip/enhanced-mode: redir-host/' config.yaml
