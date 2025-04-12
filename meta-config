@@ -26,6 +26,8 @@ sed -i "s/address: [0-9.]\+/address: $BIND/" config.yaml
 sed -i "s/^external-controller: .\+:9090/external-controller: $BIND:9090/" config.yaml
 sed -i "s/listen: .\+:53/listen: $DNS_BIND:53/" config.yaml
 sed -i 's/enhanced-mode: fake-ip/enhanced-mode: redir-host/' config.yaml
+sed -i 's/auto-route: true/auto-route: false/' config.yaml
+sed -i 's/auto-detect-interface: true/auto-detect-interface: false/' config.yaml
 
 wget -O- --method=PUT --header="Authorization: Bearer $PASSWORD" --body-data='{"path": "", "payload": ""}' "http://$BIND:9090/configs?force=true"
 
