@@ -29,6 +29,11 @@ iptables -t mangle -A $CHAIN_NAME -m set --match-set $SET_NAME dst -j RETURN
 iptables -t mangle -A $CHAIN_NAME -p udp -m multiport --sports 41641 -m multiport --dports 41641 -j RETURN
 iptables -t mangle -A $CHAIN_NAME -p udp -j TPROXY --on-ip $TPROXY_IP --on-port $TPROXY_PORT --tproxy-mark 1
 iptables -t mangle -A $CHAIN_NAME -p tcp -j TPROXY --on-ip $TPROXY_IP --on-port $TPROXY_PORT --tproxy-mark 1
+iptables -t nat -N $CHAIN_NAME
+iptables -t nat -A $CHAIN_NAME -m set --match-set $SET_NAME dst -j RETURN
+iptables -t nat -A $CHAIN_NAME -p udp -m multiport --sports 41641 -m multiport --dports 41641 -j RETURN
+iptables -t nat -A $CHAIN_NAME -p udp -j REDIRECT --to-ports $REDIRECT_PORT
+iptables -t nat -A $CHAIN_NAME -p tcp -j REDIRECT --to-ports $REDIRECT_PORT
 
 for lan_ip in ${LAN_IPS[@]}
 do
@@ -39,5 +44,5 @@ done
 for proxy_user in ${PROXY_USERS[@]}
 do
     echo "enabling proxy for user $proxy_user"
-    iptables -t nat -I OUTPUT -m owner --uid-owner $(id -u $proxy_user) -p tcp -j REDIRECT --to-ports 7892
+    iptables -t nat -I OUTPUT -m owner --uid-owner $(id -u $proxy_user) -p tcp -j $CHAIN_NAME
 done
