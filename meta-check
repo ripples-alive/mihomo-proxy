@@ -18,13 +18,13 @@ then
     exit -1
 fi
 
-if [ -z "$(sudo ipset list $SET_NAME)" ]
+if [ -z "$(ipset list $SET_NAME)" ]
 then
     echo "missing ipset rule"
     exit -1
 fi
 
-if [ -z "$(sudo iptables -t mangle -L $CHAIN_NAME)" ]
+if [ -z "$(iptables -t mangle -L $CHAIN_NAME)" ]
 then
     echo "missing iptables chain"
     exit -1
