@@ -15,7 +15,6 @@ ipset add $SET_NAME 172.16.0.0/12
 ipset add $SET_NAME 192.168.0.0/16
 ipset add $SET_NAME 224.0.0.0/4
 ipset add $SET_NAME 240.0.0.0/4
-ipset add $SET_NAME 100.64.0.0/10
 ipset add $SET_NAME 255.255.255.255/32
 ipset add $SET_NAME 192.18.0.0/16
 
