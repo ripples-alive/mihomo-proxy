@@ -25,7 +25,7 @@ else
     TPROXY_IP=${TPROXY_IP:-${BIND}}
 fi
 IFS=',:' read -ra BYPASS_IPS <<< "$BYPASS_IPS"
-IFS=',:' read -ra LAN_IPS <<< "$LAN_IPS"
+IFS=',:' read -ra PROXY_LAN_IPS <<< "$PROXY_LAN_IPS"
 
 IFS=',:' read -ra PROXY_USERS <<< "$PROXY_USERS"
 IFS=',:' read -ra PROXY_USER_IDS <<< "$PROXY_USER_IDS"

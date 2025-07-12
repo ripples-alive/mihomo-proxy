@@ -38,10 +38,10 @@ iptables -t nat -A $CHAIN_NAME -p udp -m multiport --sports 41641 -m multiport -
 iptables -t nat -A $CHAIN_NAME -p udp -j REDIRECT --to-ports $REDIRECT_PORT
 iptables -t nat -A $CHAIN_NAME -p tcp -j REDIRECT --to-ports $REDIRECT_PORT
 
-for lan_ip in ${LAN_IPS[@]}
+for proxy_lan_ip in ${PROXY_LAN_IPS[@]}
 do
-    echo "enabling proxy for $lan_ip"
-    iptables -t mangle -I PREROUTING -s $lan_ip ! -d $lan_ip -j $CHAIN_NAME
+    echo "enabling proxy for $proxy_lan_ip"
+    iptables -t mangle -I PREROUTING -s $proxy_lan_ip ! -d $proxy_lan_ip -j $CHAIN_NAME
 done
 
 for proxy_user_id in ${PROXY_USER_IDS[@]}

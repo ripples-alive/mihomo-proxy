@@ -12,10 +12,10 @@ do
     iptables -t nat -D OUTPUT -m owner --uid-owner $(id -u $proxy_user_id) -p tcp -j $CHAIN_NAME
 done
 
-for lan_ip in ${LAN_IPS[@]}
+for proxy_lan_ip in ${PROXY_LAN_IPS[@]}
 do
-    echo "disabling proxy for $lan_ip"
-    iptables -t mangle -D PREROUTING -s $lan_ip ! -d $lan_ip -j $CHAIN_NAME
+    echo "disabling proxy for $proxy_lan_ip"
+    iptables -t mangle -D PREROUTING -s $proxy_lan_ip ! -d $proxy_lan_ip -j $CHAIN_NAME
 done
 
 echo "removing rule for redirecting to proxy"

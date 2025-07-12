@@ -14,14 +14,13 @@ clone repo to `/etc/mihomo`
 create `.env`
 
 ```
+MIHOMO_SUFFIX=
 CONFIG_URL=
 PASSWORD=
-LAN_IPS=
-PROXY_USERS=
 BIND=
 DNS_BIND=
-TPROXY_IP=
-MIHOMO_SUFFIX=
+PROXY_LAN_IPS=
+PROXY_USERS=
 ```
 
 init config and enable service
