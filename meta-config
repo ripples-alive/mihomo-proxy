@@ -29,6 +29,8 @@ sed -i 's/enhanced-mode: fake-ip/enhanced-mode: redir-host/' config.yaml
 sed -i 's/auto-route: true/auto-route: false/' config.yaml
 sed -i 's/auto-detect-interface: true/auto-detect-interface: false/' config.yaml
 
+[ -f ./meta-config.local ] && source ./meta-config.local
+
 wget -O- --method=PUT --header="Authorization: Bearer $PASSWORD" --body-data='{"path": "", "payload": ""}' "http://$BIND:9090/configs?force=true" || true
 
 $CHOWN
