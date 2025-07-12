@@ -10,8 +10,12 @@ echo "current working dir: $(pwd)"
 
 OWNER=${OWNER:-$(id -u $(whoami))}
 
-TAILSCALE_IP=${TAILSCALE_IP:-$(tailscale ip -4)}
 BIND=${BIND:-0.0.0.0}
+if [ "$BIND" = "0.0.0.0" ]; then
+    DNS_BIND=${DNS_BIND:-127.0.0.1}
+else
+    DNS_BIND=${DNS_BIND:-${BIND}}
+fi
 
 CHAIN_NAME=${CHAIN_NAME:-meta}
 SET_NAME=${SET_NAME:-meta_bypass}
@@ -19,11 +23,7 @@ MARK_VALUE=${MARK_VALUE:-1}
 ROUTE_TABLE=${ROUTE_TABLE:-99}
 REDIRECT_PORT=${REDIRECT_PORT:-7892}
 TPROXY_PORT=${TPROXY_PORT:-7893}
-if [ "$BIND" = "0.0.0.0" ]; then
-    TPROXY_IP=${TPROXY_IP:-127.0.0.1}
-else
-    TPROXY_IP=${TPROXY_IP:-${BIND}}
-fi
+TPROXY_IP=${TPROXY_IP:-${DNS_BIND}}
 IFS=',:' read -ra BYPASS_IPS <<< "$BYPASS_IPS"
 IFS=',:' read -ra PROXY_LAN_IPS <<< "$PROXY_LAN_IPS"
 
@@ -36,4 +36,3 @@ done
 [ -z "$CONFIG_URL" ] && echo "CONFIG_URL not found"
 
 PASSWORD=${PASSWORD:-password}
-DNS_BIND=${DNS_BIND:-${TAILSCALE_IP}}
