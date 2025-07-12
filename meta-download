@@ -6,6 +6,6 @@ DIR_NAME=${DIR_NAME:-$(dirname $(readlink -f $0))}
 DIR_NAME=${DIR_NAME:-"."}
 source $DIR_NAME/meta-env
 
-VERSION=1.19.10
+VERSION=1.19.11
 
-wget https://github.q2zy.com/https://github.com/MetaCubeX/mihomo/releases/download/v${VERSION}/mihomo-linux-amd64${MIHOMO_SUFFIX}-v${VERSION}.deb -O deb/mihomo-linux-amd64${MIHOMO_SUFFIX}-v${VERSION}.deb
+wget https://github.q2zy.com/https://github.com/MetaCubeX/mihomo/releases/download/v${VERSION}/mihomo-linux-amd64${MIHOMO_TAG:+-${MIHOMO_TAG}}-v${VERSION}.deb -O deb/mihomo-linux-amd64${MIHOMO_SUFFIX}-v${VERSION}.deb
