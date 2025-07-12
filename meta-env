@@ -17,12 +17,19 @@ TPROXY_PORT=${TPROXY_PORT:-7893}
 TPROXY_IP=${TPROXY_IP:-127.0.0.1}
 IFS=',:' read -ra BYPASS_IPS <<< "$BYPASS_IPS"
 IFS=',:' read -ra LAN_IPS <<< "$LAN_IPS"
-IFS=',:' read -ra PROXY_USERS <<< "$PROXY_USERS"
 
-USER=${USER:-$(whoami)}
+IFS=',:' read -ra PROXY_USERS <<< "$PROXY_USERS"
+IFS=',:' read -ra PROXY_USER_IDS <<< "$PROXY_USER_IDS"
+for user in "${PROXY_USERS[@]}"; do
+    PROXY_USER_IDS+=( $(id -u "$user") )
+done
+
+USER=${USER:-$(id $(whoami))}
 
 [ -z "$CONFIG_URL" ] && echo "CONFIG_URL not found"
 
+TAILSCALE_IP=${TAILSCALE_IP:-$(tailscale ip -4)}
+
 PASSWORD=${PASSWORD:-password}
 BIND=${BIND:-0.0.0.0}
-DNS_BIND=${DNS_BIND:-$(tailscale ip -4)}
+DNS_BIND=${DNS_BIND:-${TAILSCALE_IP}}

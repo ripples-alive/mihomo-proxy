@@ -44,8 +44,8 @@ do
     iptables -t mangle -I PREROUTING -s $lan_ip ! -d $lan_ip -j $CHAIN_NAME
 done
 
-for proxy_user in ${PROXY_USERS[@]}
+for proxy_user_id in ${PROXY_USER_IDS[@]}
 do
-    echo "enabling proxy for user $proxy_user"
-    iptables -t nat -I OUTPUT -m owner --uid-owner $(id -u $proxy_user) -p tcp -j $CHAIN_NAME
+    echo "enabling proxy for user $proxy_user_id"
+    iptables -t nat -I OUTPUT -m owner --uid-owner $(id -u $proxy_user_id) -p tcp -j $CHAIN_NAME
 done

@@ -6,10 +6,10 @@ DIR_NAME=${DIR_NAME:-$(dirname $(readlink -f $0))}
 DIR_NAME=${DIR_NAME:-"."}
 source $DIR_NAME/meta-env
 
-for proxy_user in ${PROXY_USERS[@]}
+for proxy_user_id in ${PROXY_USER_IDS[@]}
 do
-    echo "enabling proxy for user $proxy_user"
-    iptables -t nat -D OUTPUT -m owner --uid-owner $(id -u $proxy_user) -p tcp -j $CHAIN_NAME
+    echo "enabling proxy for user $proxy_user_id"
+    iptables -t nat -D OUTPUT -m owner --uid-owner $(id -u $proxy_user_id) -p tcp -j $CHAIN_NAME
 done
 
 for lan_ip in ${LAN_IPS[@]}
