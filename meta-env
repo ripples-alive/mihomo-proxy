@@ -8,13 +8,22 @@ echo "meta dir: ${DIR_NAME}"
 cd $DIR_NAME
 echo "current working dir: $(pwd)"
 
+OWNER=${OWNER:-$(id -u $(whoami))}
+
+TAILSCALE_IP=${TAILSCALE_IP:-$(tailscale ip -4)}
+BIND=${BIND:-0.0.0.0}
+
 CHAIN_NAME=${CHAIN_NAME:-meta}
 SET_NAME=${SET_NAME:-meta_bypass}
 MARK_VALUE=${MARK_VALUE:-1}
 ROUTE_TABLE=${ROUTE_TABLE:-99}
 REDIRECT_PORT=${REDIRECT_PORT:-7892}
 TPROXY_PORT=${TPROXY_PORT:-7893}
-TPROXY_IP=${TPROXY_IP:-127.0.0.1}
+if [ "$BIND" = "0.0.0.0" ]; then
+    TPROXY_IP=${TPROXY_IP:-127.0.0.1}
+else
+    TPROXY_IP=${TPROXY_IP:-${BIND}}
+fi
 IFS=',:' read -ra BYPASS_IPS <<< "$BYPASS_IPS"
 IFS=',:' read -ra LAN_IPS <<< "$LAN_IPS"
 
@@ -24,12 +33,7 @@ for user in "${PROXY_USERS[@]}"; do
     PROXY_USER_IDS+=( $(id -u "$user") )
 done
 
-USER=${USER:-$(id $(whoami))}
-
 [ -z "$CONFIG_URL" ] && echo "CONFIG_URL not found"
 
-TAILSCALE_IP=${TAILSCALE_IP:-$(tailscale ip -4)}
-
 PASSWORD=${PASSWORD:-password}
-BIND=${BIND:-0.0.0.0}
 DNS_BIND=${DNS_BIND:-${TAILSCALE_IP}}

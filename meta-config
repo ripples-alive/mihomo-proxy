@@ -7,11 +7,11 @@ DIR_NAME=${DIR_NAME:-$(dirname $(readlink -f $0))}
 DIR_NAME=${DIR_NAME:-"."}
 source $DIR_NAME/meta-env
 
-CHOWN="chown -R $USER:$USER ."
+CHOWN="chown -R $OWNER:$OWNER ."
 if ! $CHOWN 2>/dev/null; then
     echo "No permission, using sudo"
-    export USER
-    exec sudo --preserve-env=USER "$0" "$@"
+    export OWNER
+    exec sudo --preserve-env=OWNER "$0" "$@"
     return
 fi
 
