@@ -1,0 +1,15 @@
+#!/bin/bash
+
+DIR_NAME=${DIR_NAME:-$(dirname $(readlink -f $0))}
+DIR_NAME=${DIR_NAME:-"."}
+cd $DIR_NAME
+
+if ./meta-check >/dev/null; then
+    echo "check successfully"
+    exit
+fi
+
+# Make sure everything clean
+./meta-down &>/dev/null
+
+./meta-up

@@ -8,24 +8,24 @@ source $DIR_NAME/meta-env
 
 if [ -z "$(ip rule show table $ROUTE_TABLE)" ]
 then
-    echo "missing route rule"
+    echo "missing route rule" >&2
     exit -1
 fi
 
 if [ -z "$(ip route show table $ROUTE_TABLE)" ]
 then
-    echo "missing route table"
+    echo "missing route table" >&2
     exit -1
 fi
 
 if [ -z "$(ipset list $SET_NAME)" ]
 then
-    echo "missing ipset rule"
+    echo "missing ipset rule" >&2
     exit -1
 fi
 
 if [ -z "$(iptables -t mangle -L $CHAIN_NAME)" ]
 then
-    echo "missing iptables chain"
+    echo "missing iptables chain" >&2
     exit -1
 fi
