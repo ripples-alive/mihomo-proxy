@@ -6,7 +6,9 @@ DIR_NAME=${DIR_NAME:-$(dirname $(readlink -f $0))}
 DIR_NAME=${DIR_NAME:-"."}
 source $DIR_NAME/meta-env
 
-[ -f ./meta-down.local ] && source ./meta-down.local
+if [ -f ./meta-down.local ]; then
+    source ./meta-down.local
+fi
 
 for proxy_user_id in ${PROXY_USER_IDS[@]}
 do

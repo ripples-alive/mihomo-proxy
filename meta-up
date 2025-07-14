@@ -50,4 +50,6 @@ do
     iptables -t nat -I OUTPUT -m owner --uid-owner $(id -u $proxy_user_id) -p tcp -j $CHAIN_NAME
 done
 
-[ -f ./meta-up.local ] && source ./meta-up.local
+if [ -f ./meta-up.local ]; then
+    source ./meta-up.local
+fi
