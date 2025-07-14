@@ -49,3 +49,5 @@ do
     echo "enabling proxy for user $proxy_user_id"
     iptables -t nat -I OUTPUT -m owner --uid-owner $(id -u $proxy_user_id) -p tcp -j $CHAIN_NAME
 done
+
+[ -f ./meta-up.local ] && source ./meta-up.local
