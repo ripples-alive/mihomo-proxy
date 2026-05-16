@@ -11,11 +11,7 @@ echo "current working dir: $(pwd)"
 OWNER=${OWNER:-$(id -u $(whoami))}
 
 BIND=${BIND:-0.0.0.0}
-if [ "$BIND" = "0.0.0.0" ]; then
-    DNS_BIND=${DNS_BIND:-127.0.0.1}
-else
-    DNS_BIND=${DNS_BIND:-${BIND}}
-fi
+DNS_BIND=${DNS_BIND:-${BIND}}
 
 CHAIN_NAME=${CHAIN_NAME:-meta}
 SET_NAME=${SET_NAME:-meta_bypass}
