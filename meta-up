@@ -41,6 +41,7 @@ iptables -t nat -A $CHAIN_NAME -p tcp -j REDIRECT --to-ports $REDIRECT_PORT
 for proxy_lan_ip in ${PROXY_LAN_IPS[@]}
 do
     echo "enabling proxy for $proxy_lan_ip"
+    ip rule add fwmark $MARK_VALUE to $proxy_lan_ip lookup main
     iptables -t mangle -I PREROUTING -s $proxy_lan_ip ! -d $proxy_lan_ip -j $CHAIN_NAME
 done
 

@@ -19,6 +19,7 @@ done
 for proxy_lan_ip in ${PROXY_LAN_IPS[@]}
 do
     echo "disabling proxy for $proxy_lan_ip"
+    ip rule del fwmark $MARK_VALUE to $proxy_lan_ip lookup main
     iptables -t mangle -D PREROUTING -s $proxy_lan_ip ! -d $proxy_lan_ip -j $CHAIN_NAME
 done
 
