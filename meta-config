@@ -38,4 +38,5 @@ wget -O- --method=POST --header="Authorization: Bearer $PASSWORD" --body-data='{
 
 $CHOWN
 chmod 777 . providers || true
-chmod 666 *.db *.dat providers/*.yaml wget-log* || true
+chmod 666 *.db *.dat providers/*.yaml || true
+rm -rf wget-log* || true
