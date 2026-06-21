@@ -10,8 +10,80 @@ echo "current working dir: $(pwd)"
 
 OWNER=${OWNER:-$(id -u $(whoami))}
 
+route_field() {
+    local key="$1"
+    local route="$2"
+    awk -v key="$key" '{
+        for (i = 1; i <= NF; i++) {
+            if ($i == key && i < NF) {
+                print $(i + 1)
+                exit
+            }
+        }
+    }' <<< "$route"
+}
+
+append_unique() {
+    local value="$1"
+    local -n values="$2"
+    local existing
+
+    [ -n "$value" ] || return
+    for existing in "${values[@]}"; do
+        [ "$existing" = "$value" ] && return
+    done
+    values+=( "$value" )
+}
+
+join_by_comma() {
+    local IFS=,
+    echo "$*"
+}
+
+DEFAULT_ROUTE=${DEFAULT_ROUTE:-$(ip -4 route show default 0.0.0.0/0 2>/dev/null | head -n 1)}
+DEFAULT_ROUTE=${DEFAULT_ROUTE:-$(ip -4 route show default 2>/dev/null | head -n 1)}
+DEFAULT_GATEWAY=${DEFAULT_GATEWAY:-$(route_field via "$DEFAULT_ROUTE")}
+WAN_IF=${WAN_IF:-$(route_field dev "$DEFAULT_ROUTE")}
+
+ROUTE_TO_GATEWAY=""
+if [ -n "$DEFAULT_GATEWAY" ]; then
+    ROUTE_TO_GATEWAY=$(ip -4 route get "$DEFAULT_GATEWAY" 2>/dev/null | head -n 1)
+fi
+ROUTE_TO_DEFAULT=$(ip -4 route get 1.1.1.1 2>/dev/null | head -n 1)
+
+WAN_IF=${WAN_IF:-$(route_field dev "$ROUTE_TO_GATEWAY")}
+WAN_IF=${WAN_IF:-$(route_field dev "$ROUTE_TO_DEFAULT")}
+GATEWAY_IP=${GATEWAY_IP:-$(route_field src "$DEFAULT_ROUTE")}
+GATEWAY_IP=${GATEWAY_IP:-$(route_field src "$ROUTE_TO_GATEWAY")}
+GATEWAY_IP=${GATEWAY_IP:-$(route_field src "$ROUTE_TO_DEFAULT")}
+
+LAN_CIDRS=${LAN_CIDRS:-$(ip -4 route show scope link 2>/dev/null | awk -v wan_if="$WAN_IF" '
+{
+    dev = ""
+    for (i = 1; i <= NF; i++) {
+        if ($i == "dev" && i < NF) {
+            dev = $(i + 1)
+            break
+        }
+    }
+}
+dev != "" &&
+dev != wan_if &&
+dev !~ /^(lo|docker|tailscale|wg|br-|virbr)/ {
+    if (cidrs) {
+        cidrs = cidrs "," $1
+    } else {
+        cidrs = $1
+    }
+}
+END { print cidrs }
+')}
+if [ -z "$LAN_CIDRS" ] && [ -n "$WAN_IF" ]; then
+    LAN_CIDRS=$(ip -4 route show dev "$WAN_IF" scope link 2>/dev/null | awk 'NR == 1 { print $1 }')
+fi
+
 BIND=${BIND:-0.0.0.0}
-DNS_BIND=${DNS_BIND:-${BIND}}
+DNS_BIND=${DNS_BIND:-${GATEWAY_IP:-${BIND}}}
 
 CHAIN_NAME=${CHAIN_NAME:-meta}
 SET_NAME=${SET_NAME:-meta_bypass}
@@ -20,8 +92,34 @@ ROUTE_TABLE=${ROUTE_TABLE:-99}
 REDIRECT_PORT=${REDIRECT_PORT:-7892}
 TPROXY_PORT=${TPROXY_PORT:-7893}
 TPROXY_IP=${TPROXY_IP:-${BIND}}
-IFS=',:' read -ra BYPASS_IPS <<< "$BYPASS_IPS"
-IFS=',:' read -ra PROXY_LAN_IPS <<< "$PROXY_LAN_IPS"
+TAILSCALE_CIDR=${TAILSCALE_CIDR-100.64.0.0/10}
+NO_PROXY_IPS=${NO_PROXY_IPS:-}
+PROXY_CLIENT_IPS=${PROXY_CLIENT_IPS:-${LAN_CIDRS}}
+NAT_CLIENT_IPS=${NAT_CLIENT_IPS:-${PROXY_CLIENT_IPS}}
+IFS=',:' read -ra LAN_CIDR_LIST <<< "$LAN_CIDRS"
+IFS=',:' read -ra NO_PROXY_IP_LIST <<< "$NO_PROXY_IPS"
+IFS=',:' read -ra PROXY_CLIENT_IP_LIST <<< "$PROXY_CLIENT_IPS"
+IFS=',:' read -ra NAT_CLIENT_IP_LIST <<< "$NAT_CLIENT_IPS"
+for lan_cidr in "${LAN_CIDR_LIST[@]}"; do
+    append_unique "$lan_cidr" NO_PROXY_IP_LIST
+done
+for default_bypass_ip in "$DEFAULT_GATEWAY" "$GATEWAY_IP"; do
+    append_unique "$default_bypass_ip" NO_PROXY_IP_LIST
+done
+if [ -n "$TAILSCALE_CIDR" ]; then
+    append_unique "$TAILSCALE_CIDR" NO_PROXY_IP_LIST
+    append_unique "$TAILSCALE_CIDR" PROXY_CLIENT_IP_LIST
+fi
+NAT_CLIENT_IP_FILTERED_LIST=()
+for nat_client_ip in "${NAT_CLIENT_IP_LIST[@]}"; do
+    [ -n "$TAILSCALE_CIDR" ] && [ "$nat_client_ip" = "$TAILSCALE_CIDR" ] && continue
+    append_unique "$nat_client_ip" NAT_CLIENT_IP_FILTERED_LIST
+done
+NAT_CLIENT_IP_LIST=( "${NAT_CLIENT_IP_FILTERED_LIST[@]}" )
+LAN_CIDRS=$(join_by_comma "${LAN_CIDR_LIST[@]}")
+NO_PROXY_IPS=$(join_by_comma "${NO_PROXY_IP_LIST[@]}")
+PROXY_CLIENT_IPS=$(join_by_comma "${PROXY_CLIENT_IP_LIST[@]}")
+NAT_CLIENT_IPS=$(join_by_comma "${NAT_CLIENT_IP_LIST[@]}")
 
 IFS=',:' read -ra PROXY_USERS <<< "$PROXY_USERS"
 IFS=',:' read -ra PROXY_USER_IDS <<< "$PROXY_USER_IDS"

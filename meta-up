@@ -8,18 +8,18 @@ source $DIR_NAME/meta-env
 
 echo "creating bypass whitelist"
 ipset create $SET_NAME hash:net
-ipset add $SET_NAME 127.0.0.0/8
-ipset add $SET_NAME 169.254.0.0/16
-ipset add $SET_NAME 10.0.0.0/8
-ipset add $SET_NAME 172.16.0.0/12
-ipset add $SET_NAME 192.168.0.0/16
-ipset add $SET_NAME 224.0.0.0/4
-ipset add $SET_NAME 240.0.0.0/4
-ipset add $SET_NAME 255.255.255.255/32
-ipset add $SET_NAME 192.18.0.0/16
-for bypass_ip in ${BYPASS_IPS[@]}
+ipset add -exist $SET_NAME 127.0.0.0/8
+ipset add -exist $SET_NAME 169.254.0.0/16
+ipset add -exist $SET_NAME 10.0.0.0/8
+ipset add -exist $SET_NAME 172.16.0.0/12
+ipset add -exist $SET_NAME 192.168.0.0/16
+ipset add -exist $SET_NAME 224.0.0.0/4
+ipset add -exist $SET_NAME 240.0.0.0/4
+ipset add -exist $SET_NAME 255.255.255.255/32
+ipset add -exist $SET_NAME 192.18.0.0/16
+for no_proxy_ip in ${NO_PROXY_IP_LIST[@]}
 do
-    ipset add $SET_NAME $bypass_ip
+    ipset add -exist $SET_NAME $no_proxy_ip
 done
 
 echo "creating route table"
@@ -42,12 +42,22 @@ iptables -t nat -A $CHAIN_NAME -p udp --dport 3478 -j RETURN
 iptables -t nat -A $CHAIN_NAME -p udp -j REDIRECT --to-ports $REDIRECT_PORT
 iptables -t nat -A $CHAIN_NAME -p tcp -j REDIRECT --to-ports $REDIRECT_PORT
 
-for proxy_lan_ip in ${PROXY_LAN_IPS[@]}
+for proxy_client_ip in ${PROXY_CLIENT_IP_LIST[@]}
 do
-    echo "enabling proxy for $proxy_lan_ip"
-    ip rule add fwmark $MARK_VALUE to $proxy_lan_ip lookup main
-    iptables -t mangle -I PREROUTING -s $proxy_lan_ip ! -d $proxy_lan_ip -j $CHAIN_NAME
+    echo "enabling proxy for client $proxy_client_ip"
+    ip rule add fwmark $MARK_VALUE to $proxy_client_ip lookup main
+    iptables -t mangle -I PREROUTING -s $proxy_client_ip ! -d $proxy_client_ip -j $CHAIN_NAME
 done
+
+if [ -n "$WAN_IF" ]; then
+    for nat_client_ip in ${NAT_CLIENT_IP_LIST[@]}
+    do
+        echo "enabling forwarding nat for client $nat_client_ip"
+        iptables -t nat -I POSTROUTING -s $nat_client_ip ! -d $nat_client_ip -o $WAN_IF -j MASQUERADE
+    done
+else
+    echo "missing WAN interface, skipping forwarding nat"
+fi
 
 for proxy_user_id in ${PROXY_USER_IDS[@]}
 do
