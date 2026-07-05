@@ -15,6 +15,80 @@ if ! $CHOWN 2>/dev/null; then
     return
 fi
 
+urlencode() {
+    if command -v jq >/dev/null 2>&1; then
+        jq -rn --arg value "$1" '$value|@uri'
+    elif command -v python3 >/dev/null 2>&1; then
+        python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"
+    else
+        printf '%s\n' "$1"
+    fi
+}
+
+provider_names_from_api() {
+    local kind="$1"
+    local response
+
+    command -v jq >/dev/null 2>&1 || return 1
+    response=$(wget -q -O- --header="Authorization: Bearer $PASSWORD" "$CONTROLLER_URL/providers/$kind" 2>/dev/null) || return 1
+    jq -r '.providers // {} | keys[]' <<< "$response"
+}
+
+proxy_provider_names_from_proxies_api() {
+    local response
+
+    command -v jq >/dev/null 2>&1 || return 1
+    response=$(wget -q -O- --header="Authorization: Bearer $PASSWORD" "$CONTROLLER_URL/proxies" 2>/dev/null) || return 1
+    jq -r '[.proxies // {} | .[] | ."provider-name" | select(. != null and . != "")] | unique[]' <<< "$response"
+}
+
+provider_names_from_config() {
+    local section="$1"
+
+    awk -v section="$section" '
+        $0 ~ "^" section ":[[:space:]]*($|#)" {
+            in_section = 1
+            next
+        }
+        in_section && /^[^[:space:]#][^:]*:/ {
+            exit
+        }
+        in_section && /^  [^[:space:]#][^:]*:[[:space:]]*($|#)/ {
+            provider = $0
+            sub(/^  /, "", provider)
+            sub(/:[[:space:]]*($|#.*)/, "", provider)
+            gsub(/^["'\''"]|["'\''"]$/, "", provider)
+            print provider
+        }
+    ' config.yaml
+}
+
+refresh_providers() {
+    local kind="$1"
+    local section="$2"
+    local provider provider_path providers
+
+    echo "refreshing $section"
+    providers=$(provider_names_from_api "$kind" || true)
+    if [ -z "$providers" ] && [ "$kind" = "proxies" ]; then
+        providers=$(proxy_provider_names_from_proxies_api || true)
+    fi
+    if [ -z "$providers" ]; then
+        providers=$(provider_names_from_config "$section" || true)
+    fi
+    if [ -z "$providers" ]; then
+        echo "no $section found"
+        return
+    fi
+
+    while IFS= read -r provider; do
+        [ -n "$provider" ] || continue
+        provider_path=$(urlencode "$provider")
+        echo "refreshing $section: $provider"
+        wget -O- --method=PUT --header="Authorization: Bearer $PASSWORD" "$CONTROLLER_URL/providers/$kind/$provider_path" || true
+    done <<< "$providers"
+}
+
 wget -O remote.yaml $CONFIG_URL
 
 cat <<EOF > config.yaml
@@ -33,11 +107,13 @@ if [ -f ./meta-config.local ]; then
     source ./meta-config.local
 fi
 
-wget -O- --method=PUT --header="Authorization: Bearer $PASSWORD" --body-data='{"path": "", "payload": ""}' "http://$BIND:9090/configs?force=true" || true
+wget -O- --method=PUT --header="Authorization: Bearer $PASSWORD" --body-data='{"path": "", "payload": ""}' "$CONTROLLER_URL/configs?force=true" || true
+refresh_providers proxies proxy-providers
+refresh_providers rules rule-providers
 
 $CHOWN
 chmod 777 . providers || true
 chmod 666 *.db *.dat providers/*.yaml || true
 rm -rf wget-log* || true
 
-wget -O- --method=POST --header="Authorization: Bearer $PASSWORD" --body-data='{"path": "", "payload": ""}' "http://$BIND:9090/upgrade/ui" || true
+wget -O- --method=POST --header="Authorization: Bearer $PASSWORD" --body-data='{"path": "", "payload": ""}' "$CONTROLLER_URL/upgrade/ui" || true

@@ -81,3 +81,8 @@ Set `BIND` or `DNS_BIND` only when you need a fixed listen address.
 ```bash
 ./meta-config
 ```
+
+`meta-config` reloads the generated configuration, then refreshes all proxy and
+rule providers found from the controller API. If the controller provider list is
+unavailable, proxy providers are inferred from `/proxies`, then both provider
+types fall back to the generated YAML sections.
