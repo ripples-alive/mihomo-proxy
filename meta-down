@@ -13,7 +13,12 @@ fi
 for proxy_user_id in ${PROXY_USER_IDS[@]}
 do
     echo "enabling proxy for user $proxy_user_id"
-    iptables -t nat -D OUTPUT -m owner --uid-owner $(id -u $proxy_user_id) -p tcp -j $CHAIN_NAME
+    if [[ "$proxy_user_id" =~ ^[0-9]+$ ]]; then
+        proxy_uid="$proxy_user_id"
+    else
+        proxy_uid="$(id -u "$proxy_user_id")"
+    fi
+    iptables -t nat -D OUTPUT -m owner --uid-owner "$proxy_uid" -p tcp -j $CHAIN_NAME
 done
 
 for proxy_client_ip in ${PROXY_CLIENT_IP_LIST[@]}
