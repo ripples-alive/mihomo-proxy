@@ -47,13 +47,22 @@ LAN_CIDRS=
 Client and bypass policy can be overridden with:
 
 ```env
+FORCE_PROXY_IPS=
 NO_PROXY_IPS=
 PROXY_CLIENT_IPS=
 NAT_CLIENT_IPS=
 TAILSCALE_CIDR=100.64.0.0/10
 ```
 
-`NO_PROXY_IPS` is destination CIDRs that should never be proxied. The scripts
+`FORCE_PROXY_IPS` defaults to empty and accepts comma- or colon-separated IPv4
+hosts and CIDRs, for example `192.0.2.42,198.51.100.128/25`. Matching rules run
+before the gateway bypass and UDP-return rules, but only for traffic already
+eligible through the existing `PROXY_CLIENT_IPS` or TCP-only local-user entry
+paths; Mihomo still decides the final DIRECT, REJECT, proxy, or other outbound.
+After changing the list, restart Mihomo to rebuild the rules; to roll back,
+remove or empty the setting and restart again.
+
+`NO_PROXY_IPS` is destination CIDRs that normally bypass the proxy. The scripts
 automatically add `LAN_CIDRS`, `DEFAULT_GATEWAY`, `GATEWAY_IP`, and
 `TAILSCALE_CIDR`.
 
