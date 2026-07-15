@@ -95,6 +95,7 @@ run_meta() {
         "NO_PROXY_IPS=203.0.113.0/25"
         "PROXY_CLIENT_IPS=192.0.2.0/25"
         "NAT_CLIENT_IPS=192.0.2.0/25"
+        "PROXY_DOCKER_LANS="
         "PROXY_USERS="
         "PROXY_USER_IDS=1001"
     )

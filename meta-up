@@ -28,6 +28,11 @@ ip route add local 0.0.0.0/0 dev lo table $ROUTE_TABLE
 
 echo "adding rule for redirecting to proxy"
 iptables -t mangle -N $CHAIN_NAME
+for docker_lan in "${PROXY_DOCKER_LAN_LIST[@]}"
+do
+    [ -n "$docker_lan" ] || continue
+    iptables -t mangle -A "$CHAIN_NAME" -s "$docker_lan" -p tcp -m conntrack --ctdir REPLY -j RETURN
+done
 for force_proxy_ip in "${FORCE_PROXY_IP_LIST[@]}"
 do
     iptables -t mangle -A "$CHAIN_NAME" -d "$force_proxy_ip" -p udp -j TPROXY --on-ip "$TPROXY_IP" --on-port "$TPROXY_PORT" --tproxy-mark 1
@@ -51,6 +56,14 @@ iptables -t nat -A $CHAIN_NAME -p udp --dport 41641 -j RETURN
 iptables -t nat -A $CHAIN_NAME -p udp --dport 3478 -j RETURN
 iptables -t nat -A $CHAIN_NAME -p udp -j REDIRECT --to-ports $REDIRECT_PORT
 iptables -t nat -A $CHAIN_NAME -p tcp -j REDIRECT --to-ports $REDIRECT_PORT
+
+for docker_lan in "${PROXY_DOCKER_LAN_LIST[@]}"
+do
+    [ -n "$docker_lan" ] || continue
+    echo "enabling TCP proxy for Docker LAN $docker_lan"
+    ip rule add fwmark "$MARK_VALUE" to "$docker_lan" lookup main
+    iptables -t mangle -I PREROUTING -s "$docker_lan" ! -d "$docker_lan" -p tcp -j "$CHAIN_NAME"
+done
 
 for proxy_client_ip in ${PROXY_CLIENT_IP_LIST[@]}
 do

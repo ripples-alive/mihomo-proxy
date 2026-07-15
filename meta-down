@@ -28,6 +28,14 @@ do
     iptables -t mangle -D PREROUTING -s $proxy_client_ip ! -d $proxy_client_ip -j $CHAIN_NAME
 done
 
+for docker_lan in "${PROXY_DOCKER_LAN_LIST[@]}"
+do
+    [ -n "$docker_lan" ] || continue
+    echo "disabling TCP proxy for Docker LAN $docker_lan"
+    ip rule del fwmark "$MARK_VALUE" to "$docker_lan" lookup main
+    iptables -t mangle -D PREROUTING -s "$docker_lan" ! -d "$docker_lan" -p tcp -j "$CHAIN_NAME"
+done
+
 if [ -n "$WAN_IF" ]; then
     for nat_client_ip in ${NAT_CLIENT_IP_LIST[@]}
     do

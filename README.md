@@ -51,6 +51,7 @@ FORCE_PROXY_IPS=
 NO_PROXY_IPS=
 PROXY_CLIENT_IPS=
 NAT_CLIENT_IPS=
+PROXY_DOCKER_LANS=
 TAILSCALE_CIDR=100.64.0.0/10
 ```
 
@@ -72,6 +73,25 @@ to `LAN_CIDRS`, with `TAILSCALE_CIDR` added automatically.
 `NAT_CLIENT_IPS` is client source CIDRs that should get forwarding NAT. It
 defaults to `PROXY_CLIENT_IPS`, with `TAILSCALE_CIDR` filtered out.
 
+`PROXY_DOCKER_LANS` defaults to empty and accepts comma- or colon-separated
+IPv4 CIDRs, for example `192.0.2.0/26,198.51.100.0/26`. Each listed network
+gets a TCP-only TProxy entry from `mangle/PREROUTING` and a marked return route
+through the main routing table. TCP packets in the conntrack `REPLY` direction
+return before `FORCE_PROXY_IPS`, so replies for connections initiated toward a
+container are not treated as new transparent-proxy connections. Ordinary
+private destinations still use the existing bypass, while forced destinations
+continue to take precedence for container-initiated connections.
+
+The scripts do not discover Docker networks or depend on `docker0`; list every
+network that should be proxied explicitly. This setting does not proxy Docker
+UDP and does not add `POSTROUTING` masquerade rules. Add a network separately
+to the complete `NAT_CLIENT_IPS` list only when this project should provide NAT
+for it.
+
+Do not configure equal or overlapping CIDRs in `PROXY_DOCKER_LANS` and
+`PROXY_CLIENT_IPS`. Doing so would combine the Docker TCP-only path with the
+ordinary TCP/UDP client path, return-route rules, and default client NAT.
+
 Set `TAILSCALE_CIDR=` to disable the default Tailscale handling.
 
 ## Bind Overrides
@@ -84,6 +104,15 @@ DNS_BIND=${GATEWAY_IP}
 ```
 
 Set `BIND` or `DNS_BIND` only when you need a fixed listen address.
+
+## Tests
+
+Run the command-mock regression tests without changing host networking:
+
+```bash
+tests/force-proxy-whitelist.sh
+tests/proxy-docker-lans.sh
+```
 
 ## Update
 
