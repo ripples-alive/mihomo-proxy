@@ -70,12 +70,8 @@ do
     echo "enabling proxy for client $proxy_client_ip"
     ip rule add fwmark $MARK_VALUE to $proxy_client_ip lookup main
     iptables -t mangle -I PREROUTING -s $proxy_client_ip ! -d $proxy_client_ip -j $CHAIN_NAME
-done
-
-for forward_client_ip in "${FORWARD_CLIENT_IP_LIST[@]}"
-do
-    echo "enabling forwarding for proxy client $forward_client_ip"
-    iptables -I FORWARD -s "$forward_client_ip" -j ACCEPT
+    iptables -I FORWARD -s "$proxy_client_ip" -j ACCEPT
+    iptables -I FORWARD -d "$proxy_client_ip" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 done
 
 if [ -n "$WAN_IF" ]; then

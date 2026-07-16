@@ -73,12 +73,14 @@ to `LAN_CIDRS`, with `TAILSCALE_CIDR` added automatically.
 `NAT_CLIENT_IPS` is client source CIDRs that should get forwarding NAT. It
 defaults to `PROXY_CLIENT_IPS`, with `TAILSCALE_CIDR` filtered out.
 
-Every source CIDR in `PROXY_CLIENT_IPS` or `PROXY_DOCKER_LANS` gets an
-`ACCEPT` rule inserted at the start of `filter/FORWARD` while Mihomo is
-running. This lets traffic from configured proxy clients pass through hosts
-whose default `FORWARD` policy is `DROP`, including traffic that bypasses
-TProxy. The rule accepts all forwarded IPv4 traffic from each configured
-source, so only add trusted networks. `meta-down` removes the rules again.
+Every source CIDR in `PROXY_CLIENT_IPS` gets two rules inserted at the start of
+`filter/FORWARD` while Mihomo is running. One accepts traffic from the client;
+the other accepts traffic back to the client only when conntrack identifies it
+as part of an `ESTABLISHED` or `RELATED` connection. Together they let
+configured proxy clients pass through hosts whose default `FORWARD` policy is
+`DROP`, including traffic that bypasses TProxy. The source rule accepts all
+forwarded IPv4 traffic from each configured client, so only add trusted
+networks. `meta-down` removes both rules again.
 
 `PROXY_DOCKER_LANS` defaults to empty and accepts comma- or colon-separated
 IPv4 CIDRs, for example `192.0.2.0/26,198.51.100.0/26`. Each listed network
@@ -91,9 +93,10 @@ continue to take precedence for container-initiated connections.
 
 The scripts do not discover Docker networks or depend on `docker0`; list every
 network that should be proxied explicitly. This setting does not proxy Docker
-UDP and does not add `POSTROUTING` masquerade rules. Add a network separately
-to the complete `NAT_CLIENT_IPS` list only when this project should provide NAT
-for it.
+UDP and does not add `filter/FORWARD` or `POSTROUTING` masquerade rules. Docker
+remains responsible for forwarding its networks. Add a network separately to
+the complete `NAT_CLIENT_IPS` list only when this project should provide NAT for
+it.
 
 Do not configure equal or overlapping CIDRs in `PROXY_DOCKER_LANS` and
 `PROXY_CLIENT_IPS`. Doing so would combine the Docker TCP-only path with the

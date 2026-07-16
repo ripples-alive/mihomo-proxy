@@ -120,7 +120,9 @@ assert_not_contains '|conntrack|--ctdir|REPLY|' "$absent_up_log"
 assert_line_count 1 'ip|rule|add|fwmark|7|to|203.0.113.64/26|lookup|main' "$absent_up_log"
 assert_line_count 1 'iptables|-t|mangle|-I|PREROUTING|-s|203.0.113.64/26|!|-d|203.0.113.64/26|-j|meta' "$absent_up_log"
 assert_line_count 1 'iptables|-I|FORWARD|-s|203.0.113.64/26|-j|ACCEPT' "$absent_up_log"
+assert_line_count 1 'iptables|-I|FORWARD|-d|203.0.113.64/26|-m|conntrack|--ctstate|ESTABLISHED,RELATED|-j|ACCEPT' "$absent_up_log"
 assert_line_count 1 'iptables|-I|FORWARD|-s|203.0.113.192/26|-j|ACCEPT' "$absent_up_log"
+assert_line_count 1 'iptables|-I|FORWARD|-d|203.0.113.192/26|-m|conntrack|--ctstate|ESTABLISHED,RELATED|-j|ACCEPT' "$absent_up_log"
 
 docker_lans='192.0.2.0/26,198.51.100.0/26:203.0.113.128/26'
 configured_up_log=$(run_meta up configured-up present "$docker_lans")
@@ -135,7 +137,8 @@ for docker_lan in 192.0.2.0/26 198.51.100.0/26 203.0.113.128/26; do
     assert_line_count 1 "$reply_rule" "$configured_up_log"
     assert_line_count 1 "$return_rule" "$configured_up_log"
     assert_line_count 1 "$prerouting_rule" "$configured_up_log"
-    assert_line_count 1 "iptables|-I|FORWARD|-s|$docker_lan|-j|ACCEPT" "$configured_up_log"
+    assert_not_contains "iptables|-I|FORWARD|-s|$docker_lan|" "$configured_up_log"
+    assert_not_contains "iptables|-I|FORWARD|-d|$docker_lan|" "$configured_up_log"
     assert_before "$reply_rule" "$force_udp" "$configured_up_log"
     assert_before "$reply_rule" "$force_tcp" "$configured_up_log"
     assert_not_contains "iptables|-t|mangle|-I|PREROUTING|-s|$docker_lan|!|-d|$docker_lan|-p|udp" "$configured_up_log"
@@ -147,7 +150,9 @@ done
 assert_line_count 1 'iptables|-t|nat|-I|POSTROUTING|-s|203.0.113.64/26|!|-d|203.0.113.64/26|-o|eth0|-j|MASQUERADE' "$configured_up_log"
 assert_line_count 1 'iptables|-t|mangle|-I|PREROUTING|-s|203.0.113.64/26|!|-d|203.0.113.64/26|-j|meta' "$configured_up_log"
 assert_line_count 1 'iptables|-I|FORWARD|-s|203.0.113.64/26|-j|ACCEPT' "$configured_up_log"
+assert_line_count 1 'iptables|-I|FORWARD|-d|203.0.113.64/26|-m|conntrack|--ctstate|ESTABLISHED,RELATED|-j|ACCEPT' "$configured_up_log"
 assert_line_count 1 'iptables|-I|FORWARD|-s|203.0.113.192/26|-j|ACCEPT' "$configured_up_log"
+assert_line_count 1 'iptables|-I|FORWARD|-d|203.0.113.192/26|-m|conntrack|--ctstate|ESTABLISHED,RELATED|-j|ACCEPT' "$configured_up_log"
 assert_line_count 1 'iptables|-t|nat|-I|OUTPUT|-m|owner|--uid-owner|1001|-p|tcp|-j|meta' "$configured_up_log"
 
 absent_down_log=$(run_meta down absent-down absent "")
@@ -155,19 +160,24 @@ empty_down_log=$(run_meta down empty-down present "")
 cmp -s "$absent_down_log" "$empty_down_log" || fail "absent and empty teardown settings emitted different commands"
 assert_not_contains '|conntrack|--ctdir|REPLY|' "$absent_down_log"
 assert_line_count 1 'iptables|-D|FORWARD|-s|203.0.113.64/26|-j|ACCEPT' "$absent_down_log"
+assert_line_count 1 'iptables|-D|FORWARD|-d|203.0.113.64/26|-m|conntrack|--ctstate|ESTABLISHED,RELATED|-j|ACCEPT' "$absent_down_log"
 assert_line_count 1 'iptables|-D|FORWARD|-s|203.0.113.192/26|-j|ACCEPT' "$absent_down_log"
+assert_line_count 1 'iptables|-D|FORWARD|-d|203.0.113.192/26|-m|conntrack|--ctstate|ESTABLISHED,RELATED|-j|ACCEPT' "$absent_down_log"
 
 configured_down_log=$(run_meta down configured-down present "$docker_lans")
 for docker_lan in 192.0.2.0/26 198.51.100.0/26 203.0.113.128/26; do
     assert_line_count 1 "ip|rule|del|fwmark|7|to|$docker_lan|lookup|main" "$configured_down_log"
     assert_line_count 1 "iptables|-t|mangle|-D|PREROUTING|-s|$docker_lan|!|-d|$docker_lan|-p|tcp|-j|meta" "$configured_down_log"
-    assert_line_count 1 "iptables|-D|FORWARD|-s|$docker_lan|-j|ACCEPT" "$configured_down_log"
+    assert_not_contains "iptables|-D|FORWARD|-s|$docker_lan|" "$configured_down_log"
+    assert_not_contains "iptables|-D|FORWARD|-d|$docker_lan|" "$configured_down_log"
     assert_not_contains "iptables|-t|mangle|-D|PREROUTING|-s|$docker_lan|!|-d|$docker_lan|-p|udp" "$configured_down_log"
     assert_not_contains "iptables|-t|nat|-D|POSTROUTING|-s|$docker_lan|" "$configured_down_log"
 done
 
 assert_line_count 1 'iptables|-D|FORWARD|-s|203.0.113.64/26|-j|ACCEPT' "$configured_down_log"
+assert_line_count 1 'iptables|-D|FORWARD|-d|203.0.113.64/26|-m|conntrack|--ctstate|ESTABLISHED,RELATED|-j|ACCEPT' "$configured_down_log"
 assert_line_count 1 'iptables|-D|FORWARD|-s|203.0.113.192/26|-j|ACCEPT' "$configured_down_log"
+assert_line_count 1 'iptables|-D|FORWARD|-d|203.0.113.192/26|-m|conntrack|--ctstate|ESTABLISHED,RELATED|-j|ACCEPT' "$configured_down_log"
 assert_contains 'iptables|-t|mangle|-F|meta' "$configured_down_log"
 assert_contains 'iptables|-t|mangle|-X|meta' "$configured_down_log"
 assert_contains 'ip|rule|del|fwmark|7|lookup|99' "$configured_down_log"

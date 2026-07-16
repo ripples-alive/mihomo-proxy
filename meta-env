@@ -117,10 +117,6 @@ if [ -n "$TAILSCALE_CIDR" ]; then
     append_unique "$TAILSCALE_CIDR" NO_PROXY_IP_LIST
     append_unique "$TAILSCALE_CIDR" PROXY_CLIENT_IP_LIST
 fi
-FORWARD_CLIENT_IP_LIST=()
-for forward_client_ip in "${PROXY_CLIENT_IP_LIST[@]}" "${PROXY_DOCKER_LAN_LIST[@]}"; do
-    append_unique "$forward_client_ip" FORWARD_CLIENT_IP_LIST
-done
 NAT_CLIENT_IP_FILTERED_LIST=()
 for nat_client_ip in "${NAT_CLIENT_IP_LIST[@]}"; do
     [ -n "$TAILSCALE_CIDR" ] && [ "$nat_client_ip" = "$TAILSCALE_CIDR" ] && continue
