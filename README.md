@@ -73,6 +73,13 @@ to `LAN_CIDRS`, with `TAILSCALE_CIDR` added automatically.
 `NAT_CLIENT_IPS` is client source CIDRs that should get forwarding NAT. It
 defaults to `PROXY_CLIENT_IPS`, with `TAILSCALE_CIDR` filtered out.
 
+Every source CIDR in `PROXY_CLIENT_IPS` or `PROXY_DOCKER_LANS` gets an
+`ACCEPT` rule inserted at the start of `filter/FORWARD` while Mihomo is
+running. This lets traffic from configured proxy clients pass through hosts
+whose default `FORWARD` policy is `DROP`, including traffic that bypasses
+TProxy. The rule accepts all forwarded IPv4 traffic from each configured
+source, so only add trusted networks. `meta-down` removes the rules again.
+
 `PROXY_DOCKER_LANS` defaults to empty and accepts comma- or colon-separated
 IPv4 CIDRs, for example `192.0.2.0/26,198.51.100.0/26`. Each listed network
 gets a TCP-only TProxy entry from `mangle/PREROUTING` and a marked return route

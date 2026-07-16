@@ -36,6 +36,12 @@ do
     iptables -t mangle -D PREROUTING -s "$docker_lan" ! -d "$docker_lan" -p tcp -j "$CHAIN_NAME"
 done
 
+for forward_client_ip in "${FORWARD_CLIENT_IP_LIST[@]}"
+do
+    echo "disabling forwarding for proxy client $forward_client_ip"
+    iptables -D FORWARD -s "$forward_client_ip" -j ACCEPT
+done
+
 if [ -n "$WAN_IF" ]; then
     for nat_client_ip in ${NAT_CLIENT_IP_LIST[@]}
     do
