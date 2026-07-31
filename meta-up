@@ -33,27 +33,31 @@ do
     [ -n "$docker_lan" ] || continue
     iptables -t mangle -A "$CHAIN_NAME" -s "$docker_lan" -p tcp -m conntrack --ctdir REPLY -j RETURN
 done
+# Tailscale's WireGuard transport and STUN must bypass application-layer TProxy
+# before FORCE_PROXY_IPS is evaluated. An endpoint address can belong to a
+# forced destination range without the transport itself being proxyable.
+iptables -t mangle -A $CHAIN_NAME -p udp --sport 41641 -j RETURN
+iptables -t mangle -A $CHAIN_NAME -p udp --dport 41641 -j RETURN
+iptables -t mangle -A $CHAIN_NAME -p udp --dport 3478 -j RETURN
 for force_proxy_ip in "${FORCE_PROXY_IP_LIST[@]}"
 do
     iptables -t mangle -A "$CHAIN_NAME" -d "$force_proxy_ip" -p udp -j TPROXY --on-ip "$TPROXY_IP" --on-port "$TPROXY_PORT" --tproxy-mark 1
     iptables -t mangle -A "$CHAIN_NAME" -d "$force_proxy_ip" -p tcp -j TPROXY --on-ip "$TPROXY_IP" --on-port "$TPROXY_PORT" --tproxy-mark 1
 done
 iptables -t mangle -A $CHAIN_NAME -m set --match-set $SET_NAME dst -j RETURN
-iptables -t mangle -A $CHAIN_NAME -p udp --sport 41641 -j RETURN
-iptables -t mangle -A $CHAIN_NAME -p udp --dport 41641 -j RETURN
-iptables -t mangle -A $CHAIN_NAME -p udp --dport 3478 -j RETURN
 iptables -t mangle -A $CHAIN_NAME -p udp -j TPROXY --on-ip $TPROXY_IP --on-port $TPROXY_PORT --tproxy-mark 1
 iptables -t mangle -A $CHAIN_NAME -p tcp -j TPROXY --on-ip $TPROXY_IP --on-port $TPROXY_PORT --tproxy-mark 1
 iptables -t nat -N $CHAIN_NAME
+# Keep the same transport exceptions ahead of forced destination redirects.
+iptables -t nat -A $CHAIN_NAME -p udp --sport 41641 -j RETURN
+iptables -t nat -A $CHAIN_NAME -p udp --dport 41641 -j RETURN
+iptables -t nat -A $CHAIN_NAME -p udp --dport 3478 -j RETURN
 for force_proxy_ip in "${FORCE_PROXY_IP_LIST[@]}"
 do
     iptables -t nat -A "$CHAIN_NAME" -d "$force_proxy_ip" -p udp -j REDIRECT --to-ports "$REDIRECT_PORT"
     iptables -t nat -A "$CHAIN_NAME" -d "$force_proxy_ip" -p tcp -j REDIRECT --to-ports "$REDIRECT_PORT"
 done
 iptables -t nat -A $CHAIN_NAME -m set --match-set $SET_NAME dst -j RETURN
-iptables -t nat -A $CHAIN_NAME -p udp --sport 41641 -j RETURN
-iptables -t nat -A $CHAIN_NAME -p udp --dport 41641 -j RETURN
-iptables -t nat -A $CHAIN_NAME -p udp --dport 3478 -j RETURN
 iptables -t nat -A $CHAIN_NAME -p udp -j REDIRECT --to-ports $REDIRECT_PORT
 iptables -t nat -A $CHAIN_NAME -p tcp -j REDIRECT --to-ports $REDIRECT_PORT
 
