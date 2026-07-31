@@ -56,12 +56,18 @@ TAILSCALE_CIDR=100.64.0.0/10
 ```
 
 `FORCE_PROXY_IPS` defaults to empty and accepts comma- or colon-separated IPv4
-hosts and CIDRs, for example `192.0.2.42,198.51.100.128/25`. Matching rules run
-before the gateway bypass and UDP-return rules, but only for traffic already
+hosts and CIDRs, for example `192.0.2.42,198.51.100.128/25`. Dedicated
+Tailscale transport exceptions (`UDP` source or destination port `41641` and
+STUN destination port `3478`) are emitted before these forced destination
+rules, so a Tailscale endpoint inside a forced range is not sent through the
+application-layer TProxy. This ordering also avoids `EADDRINUSE` when a local
+wildcard listener owns the original UDP port needed for a transparent reply.
+Forced rules still precede the ordinary private destination bypass and general
+UDP/TCP interception, but only traffic already
 eligible through the existing `PROXY_CLIENT_IPS` or TCP-only local-user entry
-paths; Mihomo still decides the final DIRECT, REJECT, proxy, or other outbound.
-After changing the list, restart Mihomo to rebuild the rules; to roll back,
-remove or empty the setting and restart again.
+paths is considered. Mihomo still decides the final DIRECT, REJECT, proxy, or
+other outbound. After changing the list, restart Mihomo to rebuild the rules;
+to roll back, remove or empty the setting and restart again.
 
 `NO_PROXY_IPS` is destination CIDRs that normally bypass the proxy. The scripts
 automatically add `LAN_CIDRS`, `DEFAULT_GATEWAY`, `GATEWAY_IP`, and

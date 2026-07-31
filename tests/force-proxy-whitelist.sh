@@ -149,12 +149,12 @@ for destination in 198.51.100.42 198.51.100.128/25 203.0.113.64/26; do
     assert_before "$nat_udp" "$nat_bypass" "$configured_log"
     assert_before "$nat_tcp" "$nat_bypass" "$configured_log"
     for return_rule in "${mangle_returns[@]}"; do
-        assert_before "$mangle_udp" "$return_rule" "$configured_log"
-        assert_before "$mangle_tcp" "$return_rule" "$configured_log"
+        assert_before "$return_rule" "$mangle_udp" "$configured_log"
+        assert_before "$return_rule" "$mangle_tcp" "$configured_log"
     done
     for return_rule in "${nat_returns[@]}"; do
-        assert_before "$nat_udp" "$return_rule" "$configured_log"
-        assert_before "$nat_tcp" "$return_rule" "$configured_log"
+        assert_before "$return_rule" "$nat_udp" "$configured_log"
+        assert_before "$return_rule" "$nat_tcp" "$configured_log"
     done
 done
 
