@@ -70,8 +70,8 @@ assert_before() {
 run_meta() {
     local action="$1"
     local name="$2"
-    local docker_mode="$3"
-    local docker_lans="$4"
+    local bridge_mode="$3"
+    local bridge_lans="$4"
     local command_log="$TEST_TMP/$name.commands"
     local -a unset_options=()
     local -a environment=(
@@ -100,10 +100,10 @@ run_meta() {
         "PROXY_USER_IDS=1001"
     )
 
-    if [ "$docker_mode" = absent ]; then
-        unset_options+=(-u PROXY_DOCKER_LANS)
+    if [ "$bridge_mode" = absent ]; then
+        unset_options+=(-u PROXY_BRIDGE_LANS)
     else
-        environment+=("PROXY_DOCKER_LANS=$docker_lans")
+        environment+=("PROXY_BRIDGE_LANS=$bridge_lans")
     fi
 
     : >"$command_log"
@@ -124,27 +124,27 @@ assert_line_count 1 'iptables|-I|FORWARD|-d|203.0.113.64/26|-m|conntrack|--ctsta
 assert_line_count 1 'iptables|-I|FORWARD|-s|203.0.113.192/26|-j|ACCEPT' "$absent_up_log"
 assert_line_count 1 'iptables|-I|FORWARD|-d|203.0.113.192/26|-m|conntrack|--ctstate|ESTABLISHED,RELATED|-j|ACCEPT' "$absent_up_log"
 
-docker_lans='192.0.2.0/26,198.51.100.0/26:203.0.113.128/26'
-configured_up_log=$(run_meta up configured-up present "$docker_lans")
+bridge_lans='192.0.2.0/26,198.51.100.0/26:203.0.113.128/26'
+configured_up_log=$(run_meta up configured-up present "$bridge_lans")
 force_udp='iptables|-t|mangle|-A|meta|-d|192.0.2.192/26|-p|udp|-j|TPROXY|--on-ip|127.0.0.1|--on-port|7893|--tproxy-mark|1'
 force_tcp='iptables|-t|mangle|-A|meta|-d|192.0.2.192/26|-p|tcp|-j|TPROXY|--on-ip|127.0.0.1|--on-port|7893|--tproxy-mark|1'
 
-for docker_lan in 192.0.2.0/26 198.51.100.0/26 203.0.113.128/26; do
-    reply_rule="iptables|-t|mangle|-A|meta|-s|$docker_lan|-p|tcp|-m|conntrack|--ctdir|REPLY|-j|RETURN"
-    return_rule="ip|rule|add|fwmark|7|to|$docker_lan|lookup|main"
-    prerouting_rule="iptables|-t|mangle|-I|PREROUTING|-s|$docker_lan|!|-d|$docker_lan|-p|tcp|-j|meta"
+for bridge_lan in 192.0.2.0/26 198.51.100.0/26 203.0.113.128/26; do
+    reply_rule="iptables|-t|mangle|-A|meta|-s|$bridge_lan|-p|tcp|-m|conntrack|--ctdir|REPLY|-j|RETURN"
+    return_rule="ip|rule|add|fwmark|7|to|$bridge_lan|lookup|main"
+    prerouting_rule="iptables|-t|mangle|-I|PREROUTING|-s|$bridge_lan|!|-d|$bridge_lan|-p|tcp|-j|meta"
 
     assert_line_count 1 "$reply_rule" "$configured_up_log"
     assert_line_count 1 "$return_rule" "$configured_up_log"
     assert_line_count 1 "$prerouting_rule" "$configured_up_log"
-    assert_not_contains "iptables|-I|FORWARD|-s|$docker_lan|" "$configured_up_log"
-    assert_not_contains "iptables|-I|FORWARD|-d|$docker_lan|" "$configured_up_log"
+    assert_not_contains "iptables|-I|FORWARD|-s|$bridge_lan|" "$configured_up_log"
+    assert_not_contains "iptables|-I|FORWARD|-d|$bridge_lan|" "$configured_up_log"
     assert_before "$reply_rule" "$force_udp" "$configured_up_log"
     assert_before "$reply_rule" "$force_tcp" "$configured_up_log"
-    assert_not_contains "iptables|-t|mangle|-I|PREROUTING|-s|$docker_lan|!|-d|$docker_lan|-p|udp" "$configured_up_log"
-    assert_not_contains "iptables|-t|mangle|-I|PREROUTING|-s|$docker_lan|!|-d|$docker_lan|-j|meta" "$configured_up_log"
-    assert_not_contains "iptables|-t|nat|-I|POSTROUTING|-s|$docker_lan|" "$configured_up_log"
-    assert_not_contains "iptables|-t|nat|-A|meta|-s|$docker_lan|" "$configured_up_log"
+    assert_not_contains "iptables|-t|mangle|-I|PREROUTING|-s|$bridge_lan|!|-d|$bridge_lan|-p|udp" "$configured_up_log"
+    assert_not_contains "iptables|-t|mangle|-I|PREROUTING|-s|$bridge_lan|!|-d|$bridge_lan|-j|meta" "$configured_up_log"
+    assert_not_contains "iptables|-t|nat|-I|POSTROUTING|-s|$bridge_lan|" "$configured_up_log"
+    assert_not_contains "iptables|-t|nat|-A|meta|-s|$bridge_lan|" "$configured_up_log"
 done
 
 assert_line_count 1 'iptables|-t|nat|-I|POSTROUTING|-s|203.0.113.64/26|!|-d|203.0.113.64/26|-o|eth0|-j|MASQUERADE' "$configured_up_log"
@@ -164,14 +164,14 @@ assert_line_count 1 'iptables|-D|FORWARD|-d|203.0.113.64/26|-m|conntrack|--ctsta
 assert_line_count 1 'iptables|-D|FORWARD|-s|203.0.113.192/26|-j|ACCEPT' "$absent_down_log"
 assert_line_count 1 'iptables|-D|FORWARD|-d|203.0.113.192/26|-m|conntrack|--ctstate|ESTABLISHED,RELATED|-j|ACCEPT' "$absent_down_log"
 
-configured_down_log=$(run_meta down configured-down present "$docker_lans")
-for docker_lan in 192.0.2.0/26 198.51.100.0/26 203.0.113.128/26; do
-    assert_line_count 1 "ip|rule|del|fwmark|7|to|$docker_lan|lookup|main" "$configured_down_log"
-    assert_line_count 1 "iptables|-t|mangle|-D|PREROUTING|-s|$docker_lan|!|-d|$docker_lan|-p|tcp|-j|meta" "$configured_down_log"
-    assert_not_contains "iptables|-D|FORWARD|-s|$docker_lan|" "$configured_down_log"
-    assert_not_contains "iptables|-D|FORWARD|-d|$docker_lan|" "$configured_down_log"
-    assert_not_contains "iptables|-t|mangle|-D|PREROUTING|-s|$docker_lan|!|-d|$docker_lan|-p|udp" "$configured_down_log"
-    assert_not_contains "iptables|-t|nat|-D|POSTROUTING|-s|$docker_lan|" "$configured_down_log"
+configured_down_log=$(run_meta down configured-down present "$bridge_lans")
+for bridge_lan in 192.0.2.0/26 198.51.100.0/26 203.0.113.128/26; do
+    assert_line_count 1 "ip|rule|del|fwmark|7|to|$bridge_lan|lookup|main" "$configured_down_log"
+    assert_line_count 1 "iptables|-t|mangle|-D|PREROUTING|-s|$bridge_lan|!|-d|$bridge_lan|-p|tcp|-j|meta" "$configured_down_log"
+    assert_not_contains "iptables|-D|FORWARD|-s|$bridge_lan|" "$configured_down_log"
+    assert_not_contains "iptables|-D|FORWARD|-d|$bridge_lan|" "$configured_down_log"
+    assert_not_contains "iptables|-t|mangle|-D|PREROUTING|-s|$bridge_lan|!|-d|$bridge_lan|-p|udp" "$configured_down_log"
+    assert_not_contains "iptables|-t|nat|-D|POSTROUTING|-s|$bridge_lan|" "$configured_down_log"
 done
 
 assert_line_count 1 'iptables|-D|FORWARD|-s|203.0.113.64/26|-j|ACCEPT' "$configured_down_log"
@@ -183,4 +183,4 @@ assert_contains 'iptables|-t|mangle|-X|meta' "$configured_down_log"
 assert_contains 'ip|rule|del|fwmark|7|lookup|99' "$configured_down_log"
 assert_contains 'ip|route|flush|table|99' "$configured_down_log"
 
-echo "proxy Docker LAN tests passed"
+echo "proxy bridge LAN tests passed"

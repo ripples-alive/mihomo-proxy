@@ -69,7 +69,7 @@ LAN_CIDRS=${LAN_CIDRS:-$(ip -4 route show scope link 2>/dev/null | awk -v wan_if
 }
 dev != "" &&
 dev != wan_if &&
-dev !~ /^(lo|docker|tailscale|wg|br-|virbr)/ {
+dev !~ /^(lo|docker|tailscale|wg|br-|virbr|lxd)/ {
     if (cidrs) {
         cidrs = cidrs "," $1
     } else {
@@ -101,13 +101,13 @@ FORCE_PROXY_IPS=${FORCE_PROXY_IPS:-}
 NO_PROXY_IPS=${NO_PROXY_IPS:-}
 PROXY_CLIENT_IPS=${PROXY_CLIENT_IPS:-${LAN_CIDRS}}
 NAT_CLIENT_IPS=${NAT_CLIENT_IPS:-${PROXY_CLIENT_IPS}}
-PROXY_DOCKER_LANS=${PROXY_DOCKER_LANS:-}
+PROXY_BRIDGE_LANS=${PROXY_BRIDGE_LANS:-}
 IFS=',:' read -ra LAN_CIDR_LIST <<< "$LAN_CIDRS"
 IFS=',:' read -ra FORCE_PROXY_IP_LIST <<< "$FORCE_PROXY_IPS"
 IFS=',:' read -ra NO_PROXY_IP_LIST <<< "$NO_PROXY_IPS"
 IFS=',:' read -ra PROXY_CLIENT_IP_LIST <<< "$PROXY_CLIENT_IPS"
 IFS=',:' read -ra NAT_CLIENT_IP_LIST <<< "$NAT_CLIENT_IPS"
-IFS=',:' read -ra PROXY_DOCKER_LAN_LIST <<< "$PROXY_DOCKER_LANS"
+IFS=',:' read -ra PROXY_BRIDGE_LAN_LIST <<< "$PROXY_BRIDGE_LANS"
 for lan_cidr in "${LAN_CIDR_LIST[@]}"; do
     append_unique "$lan_cidr" NO_PROXY_IP_LIST
 done

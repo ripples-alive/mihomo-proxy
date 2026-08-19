@@ -30,12 +30,12 @@ do
     iptables -D FORWARD -d "$proxy_client_ip" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 done
 
-for docker_lan in "${PROXY_DOCKER_LAN_LIST[@]}"
+for bridge_lan in "${PROXY_BRIDGE_LAN_LIST[@]}"
 do
-    [ -n "$docker_lan" ] || continue
-    echo "disabling TCP proxy for Docker LAN $docker_lan"
-    ip rule del fwmark "$MARK_VALUE" to "$docker_lan" lookup main
-    iptables -t mangle -D PREROUTING -s "$docker_lan" ! -d "$docker_lan" -p tcp -j "$CHAIN_NAME"
+    [ -n "$bridge_lan" ] || continue
+    echo "disabling TCP proxy for bridge LAN $bridge_lan"
+    ip rule del fwmark "$MARK_VALUE" to "$bridge_lan" lookup main
+    iptables -t mangle -D PREROUTING -s "$bridge_lan" ! -d "$bridge_lan" -p tcp -j "$CHAIN_NAME"
 done
 
 if [ -n "$WAN_IF" ]; then
