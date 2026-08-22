@@ -51,7 +51,7 @@ FORCE_PROXY_IPS=
 NO_PROXY_IPS=
 PROXY_CLIENT_IPS=
 NAT_CLIENT_IPS=
-PROXY_DOCKER_LANS=
+PROXY_BRIDGE_LANS=
 TAILSCALE_CIDR=100.64.0.0/10
 ```
 
@@ -63,11 +63,11 @@ rules, so a Tailscale endpoint inside a forced range is not sent through the
 application-layer TProxy. This ordering also avoids `EADDRINUSE` when a local
 wildcard listener owns the original UDP port needed for a transparent reply.
 Forced rules still precede the ordinary private destination bypass and general
-UDP/TCP interception, but only traffic already
-eligible through the existing `PROXY_CLIENT_IPS` or TCP-only local-user entry
-paths is considered. Mihomo still decides the final DIRECT, REJECT, proxy, or
-other outbound. After changing the list, restart Mihomo to rebuild the rules;
-to roll back, remove or empty the setting and restart again.
+UDP/TCP interception, but only traffic already eligible through the existing
+`PROXY_CLIENT_IPS`, `PROXY_BRIDGE_LANS`, or TCP-only local-user entry paths is
+considered. Mihomo still decides the final DIRECT, REJECT, proxy, or other
+outbound. After changing the list, restart Mihomo to rebuild the rules; to roll
+back, remove or empty the setting and restart again.
 
 `NO_PROXY_IPS` is destination CIDRs that normally bypass the proxy. The scripts
 automatically add `LAN_CIDRS`, `DEFAULT_GATEWAY`, `GATEWAY_IP`, and
@@ -88,24 +88,25 @@ configured proxy clients pass through hosts whose default `FORWARD` policy is
 forwarded IPv4 traffic from each configured client, so only add trusted
 networks. `meta-down` removes both rules again.
 
-`PROXY_DOCKER_LANS` defaults to empty and accepts comma- or colon-separated
-IPv4 CIDRs, for example `192.0.2.0/26,198.51.100.0/26`. Each listed network
-gets a TCP-only TProxy entry from `mangle/PREROUTING` and a marked return route
-through the main routing table. TCP packets in the conntrack `REPLY` direction
-return before `FORCE_PROXY_IPS`, so replies for connections initiated toward a
-container are not treated as new transparent-proxy connections. Ordinary
-private destinations still use the existing bypass, while forced destinations
-continue to take precedence for container-initiated connections.
+`PROXY_BRIDGE_LANS` defaults to empty and accepts comma- or colon-separated
+IPv4 CIDRs, for example `192.0.2.0/26,198.51.100.0/26`. Each listed bridge
+network gets a TCP-only TProxy entry from `mangle/PREROUTING` and a marked
+return route through the main routing table. TCP packets in the conntrack
+`REPLY` direction return before `FORCE_PROXY_IPS`, so replies for connections
+initiated toward a bridge guest are not treated as new transparent-proxy
+connections. Ordinary private destinations still use the existing bypass,
+while forced destinations continue to take precedence for guest-initiated TCP.
 
-The scripts do not discover Docker networks or depend on `docker0`; list every
-network that should be proxied explicitly. This setting does not proxy Docker
-UDP and does not add `filter/FORWARD` or `POSTROUTING` masquerade rules. Docker
-remains responsible for forwarding its networks. Add a network separately to
-the complete `NAT_CLIENT_IPS` list only when this project should provide NAT for
-it.
+Bridge network owners remain responsible for their own forwarding and NAT.
+`PROXY_BRIDGE_LANS` does not proxy UDP and does not add `filter/FORWARD` or
+`POSTROUTING` masquerade rules. Add a network separately to the complete
+`NAT_CLIENT_IPS` list only when this project should provide NAT for it.
 
-Do not configure equal or overlapping CIDRs in `PROXY_DOCKER_LANS` and
-`PROXY_CLIENT_IPS`. Doing so would combine the Docker TCP-only path with the
+Automatic LAN discovery excludes interfaces whose names start with `lo`,
+`docker`, `tailscale`, `wg`, `br-`, `virbr`, or `lxd`.
+
+Do not configure equal or overlapping CIDRs in `PROXY_BRIDGE_LANS` and
+`PROXY_CLIENT_IPS`. Doing so would combine the bridge TCP-only path with the
 ordinary TCP/UDP client path, return-route rules, and default client NAT.
 
 Set `TAILSCALE_CIDR=` to disable the default Tailscale handling.
@@ -132,7 +133,7 @@ Run the command-mock regression tests without changing host networking:
 
 ```bash
 tests/force-proxy-whitelist.sh
-tests/proxy-docker-lans.sh
+tests/proxy-bridge-lans.sh
 ```
 
 ## Update

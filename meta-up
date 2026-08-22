@@ -28,10 +28,10 @@ ip route add local 0.0.0.0/0 dev lo table $ROUTE_TABLE
 
 echo "adding rule for redirecting to proxy"
 iptables -t mangle -N $CHAIN_NAME
-for docker_lan in "${PROXY_DOCKER_LAN_LIST[@]}"
+for bridge_lan in "${PROXY_BRIDGE_LAN_LIST[@]}"
 do
-    [ -n "$docker_lan" ] || continue
-    iptables -t mangle -A "$CHAIN_NAME" -s "$docker_lan" -p tcp -m conntrack --ctdir REPLY -j RETURN
+    [ -n "$bridge_lan" ] || continue
+    iptables -t mangle -A "$CHAIN_NAME" -s "$bridge_lan" -p tcp -m conntrack --ctdir REPLY -j RETURN
 done
 # Tailscale's WireGuard transport and STUN must bypass application-layer TProxy
 # before FORCE_PROXY_IPS is evaluated. An endpoint address can belong to a
@@ -61,12 +61,12 @@ iptables -t nat -A $CHAIN_NAME -m set --match-set $SET_NAME dst -j RETURN
 iptables -t nat -A $CHAIN_NAME -p udp -j REDIRECT --to-ports $REDIRECT_PORT
 iptables -t nat -A $CHAIN_NAME -p tcp -j REDIRECT --to-ports $REDIRECT_PORT
 
-for docker_lan in "${PROXY_DOCKER_LAN_LIST[@]}"
+for bridge_lan in "${PROXY_BRIDGE_LAN_LIST[@]}"
 do
-    [ -n "$docker_lan" ] || continue
-    echo "enabling TCP proxy for Docker LAN $docker_lan"
-    ip rule add fwmark "$MARK_VALUE" to "$docker_lan" lookup main
-    iptables -t mangle -I PREROUTING -s "$docker_lan" ! -d "$docker_lan" -p tcp -j "$CHAIN_NAME"
+    [ -n "$bridge_lan" ] || continue
+    echo "enabling TCP proxy for bridge LAN $bridge_lan"
+    ip rule add fwmark "$MARK_VALUE" to "$bridge_lan" lookup main
+    iptables -t mangle -I PREROUTING -s "$bridge_lan" ! -d "$bridge_lan" -p tcp -j "$CHAIN_NAME"
 done
 
 for proxy_client_ip in ${PROXY_CLIENT_IP_LIST[@]}
