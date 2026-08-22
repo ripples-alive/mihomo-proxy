@@ -71,12 +71,12 @@ EOF
     if [[ -n "$controller_bind" ]]; then
         grep -Fxq 'external-controller: 192.0.2.5:9090' "$fixture/config.yaml"
         grep -Fq 'http://192.0.2.5:9090/configs?force=true' "$log"
-        grep -Fq -- '--timeout=30' "$log"
+        grep -F -- '--timeout=30' "$log" | grep -Fq -- '--tries=1'
         grep -Fq 'http://192.0.2.5:9090/upgrade/ui' "$log"
     else
         grep -Fxq 'external-controller: 127.0.0.1:9090' "$fixture/config.yaml"
         grep -Fq 'http://127.0.0.1:9090/configs?force=true' "$log"
-        grep -Fq -- '--timeout=30' "$log"
+        grep -F -- '--timeout=30' "$log" | grep -Fq -- '--tries=1'
         grep -Fq 'http://127.0.0.1:9090/upgrade/ui' "$log"
     fi
     grep -Fxq 'secret: rendered-secret' "$fixture/config.yaml"
