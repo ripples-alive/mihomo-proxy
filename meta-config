@@ -116,4 +116,4 @@ chmod 777 . providers || true
 chmod 666 *.db *.dat providers/*.yaml || true
 rm -rf wget-log* || true
 
-wget -O- --method=POST --header="Authorization: Bearer $PASSWORD" --body-data='{"path": "", "payload": ""}' "$CONTROLLER_URL/upgrade/ui" || true
+wget --timeout=30 -O- --method=POST --header="Authorization: Bearer $PASSWORD" --body-data='{"path": "", "payload": ""}' "$CONTROLLER_URL/upgrade/ui" || true
