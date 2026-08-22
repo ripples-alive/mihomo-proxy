@@ -117,9 +117,14 @@ The default bind values are:
 ```env
 BIND=0.0.0.0
 DNS_BIND=${GATEWAY_IP}
+CONTROLLER_BIND=${BIND}
 ```
 
-Set `BIND` or `DNS_BIND` only when you need a fixed listen address.
+`BIND` controls the proxy listeners. `CONTROLLER_BIND` controls the Mihomo
+external controller on port 9090 and may be different from `BIND`. The
+controller API URL used by the helper scripts is derived from this value;
+`0.0.0.0` is probed through `127.0.0.1`. Set `BIND`, `DNS_BIND`, or
+`CONTROLLER_BIND` only when you need a fixed listen address.
 
 ## Tests
 
