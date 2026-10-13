@@ -91,6 +91,7 @@ run_meta() {
         "MARK_VALUE=1"
         "ROUTE_TABLE=99"
         "TPROXY_IP=127.0.0.1"
+        "UDP_BYPASS_PORTS=3478,41641,43188"
         "TAILSCALE_CIDR="
         "NO_PROXY_IPS=203.0.113.0/25"
         "PROXY_CLIENT_IPS=192.0.2.0/25"
@@ -123,16 +124,18 @@ force_list='198.51.100.42,198.51.100.128/25:203.0.113.64/26'
 configured_log=$(run_meta up configured present "$force_list")
 mangle_bypass='iptables|-t|mangle|-A|meta|-m|set|--match-set|meta_bypass|dst|-j|RETURN'
 nat_bypass='iptables|-t|nat|-A|meta|-m|set|--match-set|meta_bypass|dst|-j|RETURN'
-mangle_returns=(
-    'iptables|-t|mangle|-A|meta|-p|udp|--sport|41641|-j|RETURN'
-    'iptables|-t|mangle|-A|meta|-p|udp|--dport|41641|-j|RETURN'
-    'iptables|-t|mangle|-A|meta|-p|udp|--dport|3478|-j|RETURN'
-)
-nat_returns=(
-    'iptables|-t|nat|-A|meta|-p|udp|--sport|41641|-j|RETURN'
-    'iptables|-t|nat|-A|meta|-p|udp|--dport|41641|-j|RETURN'
-    'iptables|-t|nat|-A|meta|-p|udp|--dport|3478|-j|RETURN'
-)
+mangle_returns=()
+nat_returns=()
+for bypass_port in 3478 41641 43188; do
+    mangle_returns+=(
+        "iptables|-t|mangle|-A|meta|-p|udp|--sport|$bypass_port|-j|RETURN"
+        "iptables|-t|mangle|-A|meta|-p|udp|--dport|$bypass_port|-j|RETURN"
+    )
+    nat_returns+=(
+        "iptables|-t|nat|-A|meta|-p|udp|--sport|$bypass_port|-j|RETURN"
+        "iptables|-t|nat|-A|meta|-p|udp|--dport|$bypass_port|-j|RETURN"
+    )
+done
 
 for destination in 198.51.100.42 198.51.100.128/25 203.0.113.64/26; do
     mangle_udp="iptables|-t|mangle|-A|meta|-d|$destination|-p|udp|-j|TPROXY|--on-ip|127.0.0.1|--on-port|7893|--tproxy-mark|1"

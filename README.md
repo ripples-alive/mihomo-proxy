@@ -48,6 +48,7 @@ Client and bypass policy can be overridden with:
 
 ```env
 FORCE_PROXY_IPS=
+UDP_BYPASS_PORTS=
 NO_PROXY_IPS=
 PROXY_CLIENT_IPS=
 NAT_CLIENT_IPS=
@@ -56,14 +57,20 @@ TAILSCALE_CIDR=100.64.0.0/10
 ```
 
 `FORCE_PROXY_IPS` defaults to empty and accepts comma- or colon-separated IPv4
-hosts and CIDRs, for example `192.0.2.42,198.51.100.128/25`. Dedicated
-Tailscale transport exceptions (`UDP` source or destination port `41641` and
-STUN destination port `3478`) are emitted before these forced destination
-rules, so a Tailscale endpoint inside a forced range is not sent through the
-application-layer TProxy. This ordering also avoids `EADDRINUSE` when a local
-wildcard listener owns the original UDP port needed for a transparent reply.
-Forced rules still precede the ordinary private destination bypass and general
-UDP/TCP interception, but only traffic already eligible through the existing
+hosts and CIDRs, for example `192.0.2.42,198.51.100.128/25`.
+`UDP_BYPASS_PORTS` defaults to empty and accepts comma- or colon-separated UDP
+ports between 1 and 65535. Each configured port gets both source-port and
+destination-port exceptions in the mangle and nat proxy chains. Use it for
+transport protocols such as Tailscale, STUN, or WireGuard that must not enter
+the application-layer TProxy; for example, a service deployment may provide
+`UDP_BYPASS_PORTS=3478,41641,43188`.
+
+These transport exceptions are emitted before the forced destination rules, so
+an endpoint inside a forced range is not sent through the application-layer
+TProxy. This ordering also avoids `EADDRINUSE` when a local wildcard listener
+owns the original UDP port needed for a transparent reply. Forced rules still
+precede the ordinary private destination bypass and general UDP/TCP
+interception, but only traffic already eligible through the existing
 `PROXY_CLIENT_IPS`, `PROXY_BRIDGE_LANS`, or TCP-only local-user entry paths is
 considered. Mihomo still decides the final DIRECT, REJECT, proxy, or other
 outbound. After changing the list, restart Mihomo to rebuild the rules; to roll
