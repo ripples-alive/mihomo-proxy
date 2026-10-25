@@ -1,12 +1,18 @@
 #!/bin/bash
 # meta-config-interface: 1
+# meta-config-download-interface: 1
 set -e
 
 MODE=full
 REQUEST_TIMEOUT=10
 REFRESH_TIMEOUT=120
+DOWNLOAD_DIRECT_FALLBACK=false
 while [ "$#" -gt 0 ]; do
     case "$1" in
+        --download-direct-fallback)
+            DOWNLOAD_DIRECT_FALLBACK=true
+            shift
+            ;;
         --generate-only|--refresh-providers-only)
             [ "$MODE" = full ] || { echo "Choose only one mode" >&2; exit 64; }
             MODE=${1#--}
@@ -20,7 +26,7 @@ while [ "$#" -gt 0 ]; do
             shift 2
             ;;
         --help)
-            echo "Usage: meta-config [--generate-only|--refresh-providers-only] [--request-timeout SECONDS] [--refresh-timeout SECONDS]"
+            echo "Usage: meta-config [--generate-only|--refresh-providers-only] [--download-direct-fallback] [--request-timeout SECONDS] [--refresh-timeout SECONDS]"
             exit 0
             ;;
         *) echo "Unknown option" >&2; exit 64 ;;
@@ -30,12 +36,33 @@ done
 START_SECONDS=$SECONDS
 STAGE=environment
 DOWNLOAD_TEMP=
+DOWNLOAD_ATTEMPT=0
+DOWNLOAD_ROUTE=
+DOWNLOAD_STARTED=0
 REFRESH_TEMP=
 status() {
     # Provider names in this protocol are URI encoded; raw HTTP bodies, URLs
     # and credentials must never become status records.
-    printf 'META_CONFIG_STATUS {"stage":"%s","result":"%s","rc":%d,"elapsed":%d,"kind":"%s","provider":"%s"}\n' \
-        "$STAGE" "$1" "$2" "$((SECONDS - START_SECONDS))" "${3:-}" "${4:-}"
+    local attempt=0 failure_class= route= attempt_elapsed=0
+    if [ "$STAGE" = download ]; then
+        attempt=$DOWNLOAD_ATTEMPT
+        route=$DOWNLOAD_ROUTE
+        attempt_elapsed=$((SECONDS - DOWNLOAD_STARTED))
+        case "$2" in
+            0) ;;
+            4) failure_class=network ;;
+            124|137) failure_class=timeout ;;
+            5) failure_class=certificate ;;
+            8) failure_class=http_response ;;
+            3) failure_class=file_io ;;
+            6) failure_class=authentication ;;
+            7) failure_class=protocol ;;
+            65) failure_class=empty_response ;;
+            *) failure_class=unknown ;;
+        esac
+    fi
+    printf 'META_CONFIG_STATUS {"stage":"%s","result":"%s","rc":%d,"elapsed":%d,"kind":"%s","provider":"%s","attempt":%d,"failure_class":"%s","route":"%s","attempt_elapsed":%d}\n' \
+        "$STAGE" "$1" "$2" "$((SECONDS - START_SECONDS))" "${3:-}" "${4:-}" "$attempt" "$failure_class" "$route" "$attempt_elapsed"
 }
 cleanup() {
     local rc=$?
@@ -60,6 +87,7 @@ if [ "$MODE" != refresh-providers-only ]; then
         export OWNER
         mode_args=()
         [ "$MODE" = full ] || mode_args=("--$MODE")
+        [ "$DOWNLOAD_DIRECT_FALLBACK" = false ] || mode_args+=(--download-direct-fallback)
         exec sudo --preserve-env=OWNER "$0" "${mode_args[@]}" \
             --request-timeout "$REQUEST_TIMEOUT" --refresh-timeout "$REFRESH_TIMEOUT"
     fi
@@ -166,10 +194,57 @@ if [ "$MODE" = refresh-providers-only ]; then
     exit 0
 fi
 
+download_source() {
+    local deadline=$((SECONDS + 190)) attempt remaining limit rc delay
+    local -a request_prefix=() request_options=()
+    DOWNLOAD_ROUTE=direct
+    if [ -n "${https_proxy:-${HTTPS_PROXY:-${http_proxy:-${HTTP_PROXY:-}}}}" ]; then
+        DOWNLOAD_ROUTE=proxy
+    fi
+    for attempt in 1 2 3; do
+        remaining=$((deadline - SECONDS))
+        # Reserve the forced-kill grace inside the shared wall-clock budget.
+        [ "$remaining" -gt 2 ] || return 124
+        DOWNLOAD_ATTEMPT=$attempt
+        DOWNLOAD_STARTED=$SECONDS
+        limit=60
+        [ "$limit" -le "$((remaining - 2))" ] || limit=$((remaining - 2))
+        request_prefix=()
+        request_options=()
+        if [ "$DOWNLOAD_DIRECT_FALLBACK" = true ] && [ "$attempt" -gt 1 ]; then
+            DOWNLOAD_ROUTE=direct
+            request_prefix=(env -u http_proxy -u https_proxy -u all_proxy
+                -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u no_proxy -u NO_PROXY)
+        fi
+        [ "$DOWNLOAD_ROUTE" != direct ] || request_options+=(--no-proxy)
+        : > "$DOWNLOAD_TEMP"
+        if "${request_prefix[@]}" timeout --kill-after=2s "${limit}s" wget \
+            "${request_options[@]}" \
+            --quiet --tries=1 --timeout="$limit" -O "$DOWNLOAD_TEMP" "$CONFIG_URL"; then
+            if [ -s "$DOWNLOAD_TEMP" ]; then status ok 0; return 0; fi
+            rc=65
+        else
+            rc=$?
+        fi
+        status warning "$rc"
+        # Retry transport failures explicitly, including failures Wget may
+        # consider fatal internally. Never retry HTTP, auth or certificate errors.
+        case "$rc" in
+            4|124|137) ;;
+            *) return "$rc" ;;
+        esac
+        [ "$attempt" -lt 3 ] || return "$rc"
+        delay=2
+        [ "$attempt" -ne 2 ] || delay=5
+        remaining=$((deadline - SECONDS))
+        [ "$remaining" -gt "$((delay + 2))" ] || return 124
+        sleep "$delay"
+    done
+}
+
 STAGE=download
 DOWNLOAD_TEMP=$(mktemp "$DIR_NAME/.remote.yaml.XXXXXX")
-wget --quiet --tries=1 --timeout=30 -O "$DOWNLOAD_TEMP" "$CONFIG_URL"
-test -s "$DOWNLOAD_TEMP"
+download_source
 mv -- "$DOWNLOAD_TEMP" remote.yaml
 DOWNLOAD_TEMP=
 STAGE=render

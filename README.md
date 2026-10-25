@@ -167,6 +167,23 @@ Deployment tools can separate configuration generation from runtime updates:
 hook and permissions, and returns without accessing the controller or updating
 the UI. A failed or empty download preserves the previous configuration and
 downloaded source. A generator/hook failure remains a nonzero exit.
+The main subscription download allows up to three transport attempts within a
+190-second budget: each attempt has a 60-second wall-clock ceiling, with 2- and
+5-second backoffs. The final attempt is shortened if necessary to keep both
+backoff and the two-second forced-kill grace inside the shared budget. Only
+network failures and timeouts are retried; HTTP error responses, certificate
+verification failures, authentication errors and empty responses fail immediately.
+Every attempt writes to a temporary file, so exhausted retries preserve the old
+configuration and source. Deployment callers should use one 210-second outer
+guard for the entire generation command, including local hooks and permissions.
+Do not wrap the command in another retry loop.
+
+`--download-direct-fallback` opts into direct access after the first transport
+failure: with a configured proxy the sequence is proxy, direct, direct; without
+a configured proxy all three attempts are direct. Direct requests disable Wget
+proxy use explicitly, and fallback clears all upper/lower-case proxy variables
+only for that request. The default manual invocation retries using its original
+proxy environment and does not opt into direct fallback.
 
 `--refresh-providers-only` never generates or reloads configuration, changes
 configuration permissions, or updates the UI. Controller requests bypass proxy
@@ -180,7 +197,10 @@ warning: this exit status alone does not prove cached data is usable.
 
 Stage records use the `META_CONFIG_STATUS ` prefix followed by JSON containing
 `stage`, `result`, `rc`, elapsed seconds, provider `kind`, and a URI-encoded
-`provider` name. They contain no subscription URL, password or HTTP response
+`provider` name. Download records additionally carry an `attempt` number,
+`route` (`proxy` or `direct`), `attempt_elapsed` seconds and an allow-listed
+`failure_class`; older interface-v1 consumers can ignore these
+additional fields. They contain no subscription URL, password or HTTP response
 body. Other command output may still be sensitive and should remain protected.
 An external timeout can exit `124` (or `137` after a forced kill).
 
@@ -188,6 +208,8 @@ Consumers must check the exact source line `# meta-config-interface: 1` before
 executing these modes. Do not probe an older script by passing new flags or
 `--help`: older versions ignore arguments and execute the full workflow. Publish
 the compatible script revision before enabling the new deployment calls.
+Before using `--download-direct-fallback`, also require the exact source marker
+`# meta-config-download-interface: 1` without executing the script.
 
 Local Linux regression tests (requests and firewall commands are mocked):
 
