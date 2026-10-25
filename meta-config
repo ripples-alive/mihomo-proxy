@@ -1,18 +1,68 @@
 #!/bin/bash
+# meta-config-interface: 1
 set -e
+
+MODE=full
+REQUEST_TIMEOUT=10
+REFRESH_TIMEOUT=120
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --generate-only|--refresh-providers-only)
+            [ "$MODE" = full ] || { echo "Choose only one mode" >&2; exit 64; }
+            MODE=${1#--}
+            shift
+            ;;
+        --request-timeout|--refresh-timeout)
+            option=$1
+            value=${2:-}
+            [[ "$value" =~ ^[1-9][0-9]{0,2}$ ]] || { echo "Invalid timeout" >&2; exit 64; }
+            if [ "$option" = --request-timeout ]; then REQUEST_TIMEOUT=$value; else REFRESH_TIMEOUT=$value; fi
+            shift 2
+            ;;
+        --help)
+            echo "Usage: meta-config [--generate-only|--refresh-providers-only] [--request-timeout SECONDS] [--refresh-timeout SECONDS]"
+            exit 0
+            ;;
+        *) echo "Unknown option" >&2; exit 64 ;;
+    esac
+done
+
+START_SECONDS=$SECONDS
+STAGE=environment
+DOWNLOAD_TEMP=
+REFRESH_TEMP=
+status() {
+    # Provider names in this protocol are URI encoded; raw HTTP bodies, URLs
+    # and credentials must never become status records.
+    printf 'META_CONFIG_STATUS {"stage":"%s","result":"%s","rc":%d,"elapsed":%d,"kind":"%s","provider":"%s"}\n' \
+        "$STAGE" "$1" "$2" "$((SECONDS - START_SECONDS))" "${3:-}" "${4:-}"
+}
+cleanup() {
+    local rc=$?
+    [ -z "$DOWNLOAD_TEMP" ] || rm -f -- "$DOWNLOAD_TEMP"
+    [ -z "$REFRESH_TEMP" ] || rm -rf -- "$REFRESH_TEMP"
+    if [ "$rc" -ne 0 ]; then status failed "$rc"; fi
+}
+trap cleanup EXIT
+trap 'exit 124' TERM
 
 echo "meta config"
 
 DIR_NAME=${DIR_NAME:-$(dirname $(readlink -f $0))}
 DIR_NAME=${DIR_NAME:-"."}
-source $DIR_NAME/meta-env
+source "$DIR_NAME/meta-env"
 
 CHOWN="chown -R $OWNER:$OWNER ."
-if ! $CHOWN 2>/dev/null; then
-    echo "No permission, using sudo"
-    export OWNER
-    exec sudo --preserve-env=OWNER "$0" "$@"
-    return
+if [ "$MODE" != refresh-providers-only ]; then
+    STAGE=permissions
+    if ! $CHOWN 2>/dev/null; then
+        echo "No permission, using sudo"
+        export OWNER
+        mode_args=()
+        [ "$MODE" = full ] || mode_args=("--$MODE")
+        exec sudo --preserve-env=OWNER "$0" "${mode_args[@]}" \
+            --request-timeout "$REQUEST_TIMEOUT" --refresh-timeout "$REFRESH_TIMEOUT"
+    fi
 fi
 
 urlencode() {
@@ -21,25 +71,28 @@ urlencode() {
     elif command -v python3 >/dev/null 2>&1; then
         python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"
     else
-        printf '%s\n' "$1"
+        # Bash-only fallback, including UTF-8 names encoded one byte at a time.
+        local LC_ALL=C char i
+        for ((i=0; i<${#1}; i++)); do
+            char=${1:i:1}
+            case "$char" in
+                [a-zA-Z0-9.~_-]) printf '%s' "$char" ;;
+                *) printf '%%%02X' "'$char" ;;
+            esac
+        done
     fi
 }
 
-provider_names_from_api() {
-    local kind="$1"
-    local response
-
-    command -v jq >/dev/null 2>&1 || return 1
-    response=$(wget -q -O- --header="Authorization: Bearer $PASSWORD" "$CONTROLLER_URL/providers/$kind" 2>/dev/null) || return 1
-    jq -r '.providers // {} | keys[]' <<< "$response"
-}
-
-proxy_provider_names_from_proxies_api() {
-    local response
-
-    command -v jq >/dev/null 2>&1 || return 1
-    response=$(wget -q -O- --header="Authorization: Bearer $PASSWORD" "$CONTROLLER_URL/proxies" 2>/dev/null) || return 1
-    jq -r '[.proxies // {} | .[] | ."provider-name" | select(. != null and . != "")] | unique[]' <<< "$response"
+controller_request() {
+    local method=$1 path=$2 remaining limit
+    remaining=$((REFRESH_DEADLINE - SECONDS))
+    [ "$remaining" -gt 0 ] || return 124
+    limit=$REQUEST_TIMEOUT
+    [ "$limit" -le "$remaining" ] || limit=$remaining
+    timeout --kill-after=2s "${limit}s" wget --no-proxy --quiet \
+        --timeout="$limit" --tries=1 --output-document="$REFRESH_TEMP/response" \
+        --method="$method" --header="Authorization: Bearer $PASSWORD" \
+        "$CONTROLLER_URL$path"
 }
 
 provider_names_from_config() {
@@ -68,28 +121,58 @@ refresh_providers() {
     local section="$2"
     local provider provider_path providers
 
-    echo "refreshing $section"
-    providers=$(provider_names_from_api "$kind" || true)
-    if [ -z "$providers" ] && [ "$kind" = "proxies" ]; then
-        providers=$(proxy_provider_names_from_proxies_api || true)
+    local rc
+    if command -v jq >/dev/null 2>&1 && controller_request GET "/providers/$kind" &&
+        providers=$(jq -er '.providers | objects | [to_entries[] | select(.value.vehicleType == "HTTP") | .key] | join("\n")' "$REFRESH_TEMP/response"); then
+        :
+    else
+        # Preserve the manual YAML fallback, but report discovery failure so
+        # orchestration can independently verify every required runtime provider.
+        rc=$?
+        status warning "$rc" "$kind"
+        REFRESH_FAILED=1
+        providers=$(provider_names_from_config "$section")
     fi
     if [ -z "$providers" ]; then
-        providers=$(provider_names_from_config "$section" || true)
-    fi
-    if [ -z "$providers" ]; then
-        echo "no $section found"
-        return
+        return 0
     fi
 
     while IFS= read -r provider; do
         [ -n "$provider" ] || continue
         provider_path=$(urlencode "$provider")
-        echo "refreshing $section: $provider"
-        wget -O- --method=PUT --header="Authorization: Bearer $PASSWORD" "$CONTROLLER_URL/providers/$kind/$provider_path" || true
+        if controller_request PUT "/providers/$kind/$provider_path"; then
+            status ok 0 "$kind" "$provider_path"
+        else
+            rc=$?
+            status warning "$rc" "$kind" "$provider_path"
+            REFRESH_FAILED=1
+        fi
     done <<< "$providers"
 }
 
-wget -O remote.yaml $CONFIG_URL
+refresh_all_providers() {
+    STAGE=refresh
+    REFRESH_DEADLINE=$((SECONDS + REFRESH_TIMEOUT))
+    REFRESH_FAILED=0
+    REFRESH_TEMP=$(mktemp -d)
+    refresh_providers proxies proxy-providers
+    refresh_providers rules rule-providers
+    if [ "$REFRESH_FAILED" -ne 0 ]; then status warning 2; return 2; fi
+    status ok 0
+}
+
+if [ "$MODE" = refresh-providers-only ]; then
+    refresh_all_providers
+    exit 0
+fi
+
+STAGE=download
+DOWNLOAD_TEMP=$(mktemp "$DIR_NAME/.remote.yaml.XXXXXX")
+wget --quiet --tries=1 --timeout=30 -O "$DOWNLOAD_TEMP" "$CONFIG_URL"
+test -s "$DOWNLOAD_TEMP"
+mv -- "$DOWNLOAD_TEMP" remote.yaml
+DOWNLOAD_TEMP=
+STAGE=render
 
 cat <<EOF > config.yaml
 EOF
@@ -107,13 +190,24 @@ if [ -f ./meta-config.local ]; then
     source ./meta-config.local
 fi
 
-wget -O- --method=PUT --header="Authorization: Bearer $PASSWORD" --body-data='{"path": "", "payload": ""}' "$CONTROLLER_URL/configs?force=true" || true
-refresh_providers proxies proxy-providers
-refresh_providers rules rule-providers
-
+STAGE=permissions
 $CHOWN
 chmod 777 . providers || true
 chmod 666 *.db *.dat providers/*.yaml || true
 rm -rf wget-log* || true
 
-wget --timeout=30 --tries=1 -O- --method=POST --header="Authorization: Bearer $PASSWORD" --body-data='{"path": "", "payload": ""}' "$CONTROLLER_URL/upgrade/ui" || true
+STAGE=generate
+status ok 0
+if [ "$MODE" = generate-only ]; then exit 0; fi
+
+STAGE=reload
+timeout --kill-after=2s "${REQUEST_TIMEOUT}s" wget --no-proxy --quiet --tries=1 \
+    --timeout="$REQUEST_TIMEOUT" -O /dev/null --method=PUT \
+    --header="Authorization: Bearer $PASSWORD" --body-data='{"path": "", "payload": ""}' \
+    "$CONTROLLER_URL/configs?force=true" || status warning "$?"
+refresh_all_providers || true
+
+STAGE=ui
+timeout --kill-after=2s 30s wget --no-proxy --quiet --timeout=30 --tries=1 -O /dev/null \
+    --method=POST --header="Authorization: Bearer $PASSWORD" \
+    --body-data='{"path": "", "payload": ""}' "$CONTROLLER_URL/upgrade/ui" || status warning "$?"

@@ -150,6 +150,50 @@ tests/proxy-bridge-lans.sh
 ```
 
 `meta-config` reloads the generated configuration, then refreshes all proxy and
-rule providers found from the controller API. If the controller provider list is
-unavailable, proxy providers are inferred from `/proxies`, then both provider
-types fall back to the generated YAML sections.
+rule providers and attempts a UI update. HTTP providers are discovered from the
+controller API; synthetic Compatible providers (including selectors) are skipped.
+If discovery is unavailable, the generated YAML provider sections are used as a
+fallback and the incomplete discovery is reported.
+
+Deployment tools can separate configuration generation from runtime updates:
+
+```bash
+./meta-config --generate-only
+# Validate the generated configuration, then start/restart Mihomo as needed.
+./meta-config --refresh-providers-only --request-timeout 10 --refresh-timeout 120
+```
+
+`--generate-only` downloads the subscription, applies the local configuration
+hook and permissions, and returns without accessing the controller or updating
+the UI. A failed or empty download preserves the previous configuration and
+downloaded source. A generator/hook failure remains a nonzero exit.
+
+`--refresh-providers-only` never generates or reloads configuration, changes
+configuration permissions, or updates the UI. Controller requests bypass proxy
+environment variables and have a single attempt, a 10-second wall-clock limit
+per request and a shared 120-second refresh budget by default. The two timeout
+options accept positive integer seconds (1–999); GNU `timeout` is required.
+Exit status is `0` for complete refresh and `2` for incomplete discovery or
+refresh, including exhaustion of the budget. The caller must separately inspect
+the controller's required providers before treating an incomplete refresh as a
+warning: this exit status alone does not prove cached data is usable.
+
+Stage records use the `META_CONFIG_STATUS ` prefix followed by JSON containing
+`stage`, `result`, `rc`, elapsed seconds, provider `kind`, and a URI-encoded
+`provider` name. They contain no subscription URL, password or HTTP response
+body. Other command output may still be sensitive and should remain protected.
+An external timeout can exit `124` (or `137` after a forced kill).
+
+Consumers must check the exact source line `# meta-config-interface: 1` before
+executing these modes. Do not probe an older script by passing new flags or
+`--help`: older versions ignore arguments and execute the full workflow. Publish
+the compatible script revision before enabling the new deployment calls.
+
+Local Linux regression tests (requests and firewall commands are mocked):
+
+```bash
+bash tests/config-stages.sh
+bash tests/controller-bind.sh
+bash tests/force-proxy-whitelist.sh
+bash tests/proxy-bridge-lans.sh
+```

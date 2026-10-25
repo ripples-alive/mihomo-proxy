@@ -32,10 +32,11 @@ EOF
 #!/bin/bash
 set -euo pipefail
 printf '%s\n' "$*" >>"$WGET_LOG"
-if [[ "${1:-}" == "-O" && "${2:-}" == "remote.yaml" ]]; then
-    if [[ "$REMOTE_CONFIG" != "$PWD/remote.yaml" ]]; then
-        cp "$REMOTE_CONFIG" remote.yaml
-    fi
+args=("$@")
+if [[ "${args[-1]}" == https://example.invalid/subscription ]]; then
+    for ((i=0; i<${#args[@]}; i++)); do
+        if [[ "${args[i]}" == -O ]]; then cp "$REMOTE_CONFIG" "${args[i+1]}"; fi
+    done
     exit 0
 fi
 printf '{}\n'
